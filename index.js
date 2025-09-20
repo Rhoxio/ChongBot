@@ -137,11 +137,8 @@ client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
     const newNickname = newMember.nickname;
     const originalUsername = originalUsernames.get(newMember.id);
     
-    // Check if they changed their nickname to something different from their original username
-    if (newNickname && newNickname !== originalUsername) {
-      // Note: Verification now happens only after role selection in the verification flow
-      console.log(`📝 ${newMember.user.tag} set nickname to: ${newNickname} (verification pending role selection)`);
-    }
+    // Note: Nickname changes are now handled through the verification flow
+    // No need to log here as it's already logged in the modal submission handler
     
   } catch (error) {
     console.error(`❌ Error handling member update for ${newMember.user.tag}:`, error);
@@ -301,6 +298,7 @@ async function handleModalSubmit(interaction) {
     try {
       // Set the nickname first
       await interaction.member.setNickname(nickname);
+      console.log(`📝 ${interaction.user.tag} set nickname to: ${nickname} (verification pending role selection)`);
 
       // Special handling for server owner (testing mode)
       if (isOwner) {
@@ -457,24 +455,16 @@ async function assignCommunityRole(member, roleChoice) {
     'guildie': { id: config.guildieRoleId, name: 'Guildie' }
   };
   
-  console.log(`🔍 Debug - Role choice: ${roleChoice}`);
-  console.log(`🔍 Debug - Role map:`, roleMap);
-  
   const selectedRole = roleMap[roleChoice.toLowerCase()];
   if (!selectedRole) {
     throw new Error(`Invalid role choice: ${roleChoice}`);
   }
   
-  console.log(`🔍 Debug - Selected role: ${selectedRole.name} (${selectedRole.id})`);
-  
   const discordRole = member.guild.roles.cache.get(selectedRole.id);
   if (!discordRole) {
     console.error(`❌ Role not found: ${selectedRole.name} (${selectedRole.id})`);
-    console.log(`🔍 Debug - Available roles:`, member.guild.roles.cache.map(r => `${r.name} (${r.id})`));
     return `${selectedRole.name} (role not found)`;
   }
-  
-  console.log(`🔍 Debug - Found Discord role: ${discordRole.name}`);
   
   // Remove other community roles first
   const allCommunityRoles = Object.values(roleMap).map(r => r.id).filter(id => id);

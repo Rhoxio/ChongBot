@@ -1,6 +1,6 @@
 const { REST, Routes } = require('discord.js');
-const config = require('./config');
-const { commands } = require('./commands');
+const config = require('./src/config/config');
+const { commands } = require('./src/handlers/commands');
 
 const rest = new REST().setToken(config.token);
 

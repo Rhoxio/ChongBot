@@ -1,6 +1,7 @@
 const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits, ActionRowBuilder } = require('discord.js');
-const config = require('./config');
-const { createVerificationEmbed, createVerificationButton } = require('./verification-utils');
+const config = require('../config/config');
+const { createVerificationEmbed, createVerificationButton } = require('../core/verification');
+const { getRandomChongalation, getChongalationByAuthor, getAllAuthors } = require('./chongalations');
 
 const commands = [
   // Verify user manually
@@ -73,8 +74,49 @@ const commands = [
         .setRequired(false)),
 ];
 
+// Check if user has admin permissions (either Discord admin or allow-listed)
+function isUserAdmin(interaction) {
+  const userId = interaction.user.id;
+  const member = interaction.member;
+  
+  // Check if user is in the admin allow-list
+  if (config.adminUserIds.includes(userId)) {
+    return true;
+  }
+  
+  // Check if user has Discord administrator permissions
+  if (member && member.permissions.has(PermissionFlagsBits.Administrator)) {
+    return true;
+  }
+  
+  // Check if user has manage roles permission (fallback for admin commands)
+  if (member && member.permissions.has(PermissionFlagsBits.ManageRoles)) {
+    return true;
+  }
+  
+  return false;
+}
+
 async function handleCommands(interaction) {
   const { commandName } = interaction;
+  
+  // Define admin-only commands
+  const adminCommands = [
+    'verify', 'unverify', 'status', 'stats', 
+    'reset-verify-message', 'test-verification', 
+    'force-setup', 'auto-assign-roles'
+  ];
+  
+  // Check admin permissions for sensitive commands
+  if (adminCommands.includes(commandName)) {
+    if (!isUserAdmin(interaction)) {
+      await interaction.reply({
+        content: '❌ You do not have permission to use this command. Only administrators and allow-listed users can run admin commands.',
+        ephemeral: true
+      });
+      return;
+    }
+  }
   
   try {
     switch (commandName) {
@@ -261,7 +303,7 @@ async function handleStatsCommand(interaction) {
 }
 
 async function handleResetVerifyCommand(interaction) {
-  const config = require('./config');
+  // Config imported at top of file
   const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
   
   const verifyChannel = interaction.guild.channels.cache.get(config.verifyChannelId);
@@ -315,7 +357,7 @@ async function handleResetVerifyCommand(interaction) {
 }
 
 async function handleTestVerificationCommand(interaction) {
-  const config = require('./config');
+  // Config imported at top of file
   
   const member = interaction.member;
   const unverifiedRole = interaction.guild.roles.cache.get(config.unverifiedRoleId);
@@ -356,7 +398,7 @@ async function handleTestVerificationCommand(interaction) {
 }
 
 async function handleForceSetupCommand(interaction) {
-  const config = require('./config');
+  // Config imported at top of file
   const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
   
   const verifyChannel = interaction.guild.channels.cache.get(config.verifyChannelId);
@@ -429,7 +471,7 @@ async function handleForceSetupCommand(interaction) {
 }
 
 async function handleAutoAssignRolesCommand(interaction) {
-  const config = require('./config');
+  // Config imported at top of file
   
   await interaction.deferReply({ ephemeral: true });
   
@@ -496,7 +538,7 @@ async function handleAutoAssignRolesCommand(interaction) {
 }
 
 function getCommunityRoles(member) {
-  const config = require('./config');
+  // Config imported at top of file
   const roles = [];
   
   if (member.roles.cache.has(config.pugRoleId)) roles.push('Pug');
@@ -507,7 +549,7 @@ function getCommunityRoles(member) {
 }
 
 async function handleChongalationCommand(interaction) {
-  const { getRandomChongalation, getChongalationByAuthor, getAllAuthors } = require('./chongalations');
+  // Chongalations imported at top of file
   
   try {
     const authorFilter = interaction.options.getString('author');

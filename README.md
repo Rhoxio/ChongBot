@@ -1,247 +1,285 @@
 # Chonglers Discord Bot
 
-A Discord bot that enforces nickname changes before users can access server channels. This ensures all members have meaningful display names rather than their default Discord usernames.
+A comprehensive Discord verification bot with a **two-step verification system** featuring button-based interactions, role selection, and admin controls. Ensures clear communication by requiring users to set in-game character names and select community roles before gaining server access.
 
-## Features
+## ✨ Features
 
-- 🔒 **Automatic Role Management**: Assigns unverified role to new members
-- 📝 **Nickname Detection**: Automatically detects when users change their server nickname
-- ✅ **Auto-Verification**: Grants access when nickname is changed to something different from Discord username
-- 🛠️ **Admin Commands**: Manual verification controls for moderators
-- 📊 **Statistics**: Track verification rates and server stats
-- 💬 **Welcome Messages**: Clear instructions for new users
+### 🔐 **Two-Step Verification System**
+- **Step 1**: Modal form to set in-game character name
+- **Step 2**: Dropdown menu to select community role (Pug/Prospect/Guildie)
+- **Button-based UI** with beautiful Discord embeds
+- **No verification until both steps complete**
 
-## How It Works
+### 🎭 **Community Role Management**
+- **🐶 Pug** - Pick-up group member for one-off raids
+- **⚡ Prospect** - Experienced player looking to join
+- **🛡️ Guildie** - Full guild member
+- **Automatic role switching** (removes old role when selecting new one)
 
-1. **New Member Joins**: Bot assigns an "Unverified" role and sends welcome instructions
-2. **User Changes Nickname**: When user changes their server nickname to something different from their Discord username
-3. **Auto-Verification**: Bot removes "Unverified" role and adds "Verified" role
-4. **Channel Access**: User can now see and access all server channels
+### 🛠️ **Admin Controls & Security**
+- **Permission-protected commands** (admins + allow-listed users only)
+- **Manual verification tools** for moderators
+- **Server statistics** and verification tracking
+- **Force setup** and testing tools
 
-## Setup Instructions
+### 🎉 **User Experience**
+- **Single verification channel** with persistent message
+- **Clear instructions** with role previews
+- **Instant feedback** and error handling
+- **Owner testing mode** for safe development
 
-### 1. Create Discord Bot
+## 🚀 How It Works
 
-1. Go to [Discord Developer Portal](https://discord.com/developers/applications)
-2. Click "New Application" and give it a name
-3. Go to "Bot" section and click "Add Bot"
-4. Copy the bot token (you'll need this later)
-5. Enable these Privileged Gateway Intents:
-   - Server Members Intent
-   - Message Content Intent
+### **For New Users:**
+1. **Join Server** → Automatically get "Unverified" role (no channel access)
+2. **Go to #verify** → See welcome message with "Complete Verification" button
+3. **Click Button** → Modal opens to enter in-game character name
+4. **Set Nickname** → Dropdown appears to select community role
+5. **Choose Role** → Get "Verified" role + community role + full server access
 
-### 2. Invite Bot to Server
+### **For Admins:**
+- Use `/verify @user` to manually verify users
+- Use `/stats` to see verification metrics
+- Use `/reset-verify-message` to update the verification message
+- Use `/chongalation` for fun community quotes!
 
-1. Go to "OAuth2" > "URL Generator"
-2. Select scopes: `bot` and `applications.commands`
-3. Select bot permissions:
-   - Manage Roles
-   - Send Messages
-   - Use Slash Commands
-   - Read Message History
-   - View Channels
-4. Use the generated URL to invite the bot to your server
+## 📋 Setup Instructions
 
-### 3. Server Setup
+### 1. Discord Bot Creation
 
-#### Create Roles
-1. Create two roles in your Discord server:
-   - **Unverified** (no channel permissions)
-   - **Verified** (access to all channels)
+1. **Discord Developer Portal**: https://discord.com/developers/applications
+2. **Create New Application** → Choose a name
+3. **Bot Section** → "Add Bot" → Copy the bot token
+4. **Enable Privileged Gateway Intents:**
+   - ✅ Server Members Intent
+   - ✅ Message Content Intent
 
-#### Set Channel Permissions
-1. For each channel you want to restrict:
-   - Remove `@everyone` role permissions
-   - Allow `Verified` role to view/send messages
-   - Deny `Unverified` role access
+### 2. Server Preparation
 
-2. Create a welcome channel:
-   - Allow both `Verified` and `Unverified` roles to see this channel
-   - This is where instructions will be sent
-
-#### Get IDs
-Right-click and "Copy ID" for:
-- Your server (Guild ID)
-- Welcome channel
-- General/main channel
-- Unverified role
-- Verified role
-- Your user ID (for admin commands)
-
-### 4. Configure Bot
-
-1. Copy `config.example.env` to `.env`
-2. Fill in all the required values:
-
-```env
-# Discord Bot Configuration
-DISCORD_TOKEN=your_bot_token_here
-CLIENT_ID=your_bot_client_id_here
-
-# Server Configuration
-GUILD_ID=your_server_id_here
-WELCOME_CHANNEL_ID=your_welcome_channel_id_here
-GENERAL_CHANNEL_ID=your_general_channel_id_here
-
-# Role Configuration
-UNVERIFIED_ROLE_ID=your_unverified_role_id_here
-VERIFIED_ROLE_ID=your_verified_role_id_here
-
-# Bot Settings
-REQUIRED_NICKNAME_CHANGE=true
-ADMIN_USER_IDS=your_user_id_here
+#### **Create Roles (in this order):**
+```
+👑 Admin Roles (your existing roles)
+🤖 ChongBot Role ← Bot's role (MUST BE ABOVE MANAGED ROLES)
+🛡️ Guildie Role
+⚡ Prospect Role  
+🐶 Pug Role
+✅ Verified Role
+❌ Unverified Role
+👥 @everyone (bottom)
 ```
 
-### 5. Install and Run
+#### **Create Channels:**
+- **#verify** - Where the verification message will live
+- **#general** - Main chat (or your preferred default channel)
+
+#### **Set Channel Permissions:**
+1. **For restricted channels:**
+   - ❌ Remove `@everyone` view permissions
+   - ✅ Allow `Verified` role to view/chat
+   - ❌ Deny `Unverified` role access
+
+2. **For #verify channel:**
+   - ✅ Allow `@everyone` to view
+   - ✅ Allow bot to send/manage messages
+
+### 3. Get Discord IDs
+
+**Enable Developer Mode:** User Settings → App Settings → Advanced → Developer Mode
+
+**Right-click and "Copy ID" for:**
+- Your server (Guild ID)
+- #verify channel
+- #general channel  
+- Unverified role
+- Verified role
+- Pug role
+- Prospect role
+- Guildie role
+- Your user ID (for admin access)
+
+### 4. Bot Configuration
+
+#### **Local Development:**
+```bash
+# Copy the example config
+cp config.example.env .env
+
+# Edit .env with your values
+DISCORD_TOKEN=your_bot_token_here
+CLIENT_ID=your_bot_client_id_here
+GUILD_ID=your_server_id_here
+VERIFY_CHANNEL_ID=your_verify_channel_id_here
+GENERAL_CHANNEL_ID=your_general_channel_id_here
+UNVERIFIED_ROLE_ID=your_unverified_role_id_here
+VERIFIED_ROLE_ID=your_verified_role_id_here
+PUG_ROLE_ID=your_pug_role_id_here
+PROSPECT_ROLE_ID=your_prospect_role_id_here
+GUILDIE_ROLE_ID=your_guildie_role_id_here
+REQUIRED_NICKNAME_CHANGE=true
+ADMIN_USER_IDS=your_user_id_here,another_admin_id_here
+```
+
+#### **Railway Deployment:**
+Set the same environment variables in your Railway dashboard.
+
+### 5. Installation & Launch
 
 ```bash
 # Install dependencies
 npm install
 
-# Deploy slash commands
-node deploy-commands.js
+# Deploy slash commands (required!)
+npm run deploy
 
 # Start the bot
 npm start
 
-# Or for development with auto-restart
+# Development with auto-restart
 npm run dev
 ```
 
-## Admin Commands
+## 🎮 Commands
 
-The bot includes several slash commands for moderators:
+### **Public Commands**
+- `/chongalation [author]` - Get a random community quote
 
+### **Admin Commands** (Admins + Allow-listed Users Only)
 - `/verify @user` - Manually verify a user
-- `/unverify @user` - Remove verification from a user  
-- `/status @user` - Check verification status of a user
+- `/unverify @user` - Remove verification from a user
+- `/status @user` - Check user's verification status
 - `/stats` - View server verification statistics
+- `/reset-verify-message` - Update the verification message
+- `/test-verification` - Test the verification flow (admin override)
+- `/force-setup` - Force setup verification system
+- `/auto-assign-roles` - Bulk assign unverified role to members
 
-## Customization
+## 🔐 Permission Requirements
 
-### Messages
-Edit the messages in `config.js` to customize:
-- Welcome message text
-- Verification confirmation
-- Instructions
+### **Bot Permissions (Essential)**
+- ✅ **Manage Roles** - Add/remove verification and community roles
+- ✅ **Manage Nicknames** - Set user nicknames during verification
+- ✅ **Send Messages** - Send verification messages and responses
+- ✅ **View Channels** - Access channels to manage verification
+- ✅ **Use Slash Commands** - Enable all `/` commands
+- ✅ **Read Message History** - Manage existing bot messages
 
-### Verification Logic
-The bot currently verifies users when they change their nickname to anything different from their Discord username. You can modify the verification logic in the `handleNicknameVerification()` function.
+### **Bot Permissions (Recommended)**
+- ✅ **Manage Messages** - Clean up old messages (prevents errors)
 
-### Additional Features
-Consider adding:
-- Time-based verification reminders
-- Automatic role assignment based on nickname patterns
-- Integration with other moderation bots
-- Webhook notifications for admin actions
+### **Admin Access Control**
+The bot checks for admin permissions in this order:
+1. **Allow-listed Discord IDs** (`ADMIN_USER_IDS`)
+2. **Discord Administrator permission**
+3. **Manage Roles permission** (fallback)
 
-## Troubleshooting
+## 🚀 Deployment Options
 
-### Bot Not Responding
-- Check bot token is correct
-- Ensure bot has necessary permissions
-- Verify bot is online in Discord
+### **Railway (Recommended)**
+1. Connect your GitHub repo to Railway
+2. Set all environment variables in Railway dashboard
+3. Deploy automatically on git push
+4. See `RAILWAY_QUICK_START.md` for detailed instructions
 
-### Roles Not Working
-- Check role IDs are correct
-- Ensure bot's role is higher than managed roles
-- Verify channel permissions are set correctly
+### **Local Development**
+1. Set up `.env` file with your configuration
+2. Run `npm start` to start the bot locally
+3. Great for testing and development
 
-### Commands Not Appearing
-- Run `node deploy-commands.js` to register commands
-- Check bot has `applications.commands` scope
-- Ensure user has appropriate permissions
+## 🎯 Key Features Explained
 
-## Security Notes
+### **Two-Step Verification**
+- **Prevents incomplete verification** - users must complete both nickname AND role selection
+- **Role-based access control** - users only get verified after choosing their community role
+- **Better user experience** - clear, guided process with proper UI components
 
-- Keep your bot token secret and never commit it to version control
-- Use environment variables for sensitive configuration
-- Regularly rotate your bot token if compromised
-- Only grant necessary permissions to the bot
+### **Community Roles**
+- **Pug**: Temporary members for pick-up groups and one-off raids
+- **Prospect**: Experienced players interested in joining the guild
+- **Guildie**: Full guild members with complete access
 
-## Support
+### **Admin Security**
+- **Multiple permission layers** - allow-listed users, Discord admins, role managers
+- **Command restrictions** - sensitive commands are admin-only
+- **Testing capabilities** - admins can test the flow without affecting their roles
 
-If you need help with setup or encounter issues:
-1. Check the console output for error messages
-2. Verify all IDs and tokens are correct
-3. Ensure bot permissions are properly configured
-4. Test with a small server first before deploying to main server
+### **Smart Error Handling**
+- **Graceful interaction failures** - handles Discord API timeouts
+- **User-friendly error messages** - clear feedback on what went wrong
+- **Automatic recovery** - bot continues working even after errors
+
+## 🛠️ Customization
+
+### **Modify Verification Message**
+Edit `verification-utils.js` to change:
+- Embed colors and styling
+- Role descriptions
+- Instructions and help text
+- Button labels
+
+### **Add New Roles**
+1. Create the role in Discord
+2. Add role ID to environment variables
+3. Update `assignCommunityRole()` function in `index.js`
+4. Add role option to dropdown in verification flow
+
+### **Custom Commands**
+Add new commands in `commands.js`:
+- Follow existing patterns for admin vs public commands
+- Use proper permission checks
+- Include error handling
+
+## 🚨 Troubleshooting
+
+### **Bot Not Responding**
+- ✅ Check bot token is correct
+- ✅ Verify bot is online in Discord
+- ✅ Ensure bot has required permissions
+- ✅ Check console for error messages
+
+### **Commands Not Working**
+- ✅ Run `npm run deploy` to register commands
+- ✅ Check bot has `applications.commands` scope
+- ✅ Verify user has admin permissions for admin commands
+- ✅ Ensure bot role is above managed roles
+
+### **Verification Issues**
+- ✅ Check all role IDs are correct in environment variables
+- ✅ Verify bot can manage the Unverified/Verified roles
+- ✅ Ensure #verify channel allows bot to send messages
+- ✅ Check role hierarchy (bot role above managed roles)
+
+### **Permission Errors**
+- ✅ Bot role must be above Verified/Unverified/Community roles
+- ✅ Enable "Manage Roles" and "Manage Nicknames" permissions
+- ✅ Grant channel access permissions in #verify
+
+## 📊 Monitoring & Maintenance
+
+### **Health Checks**
+- Bot includes Express server on port 3000 for Railway health checks
+- Console logging shows verification activity and errors
+- Use `/stats` command to monitor verification rates
+
+### **Updates & Deployment**
+- Push to main branch → Railway auto-deploys
+- Environment variables persist between deployments
+- Commands auto-deploy via `postinstall` script
+
+## 🔗 Quick Links
+
+- **Setup Guide**: [`docs/SETUP.md`](docs/SETUP.md)
+- **Testing Guide**: [`docs/TESTING.md`](docs/TESTING.md)
+- **Deployment Guide**: [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md)
+- **Railway Quick Start**: [`docs/RAILWAY_QUICK_START.md`](docs/RAILWAY_QUICK_START.md)
+
+## 💡 Tips
+
+- **Test locally first** before deploying to production
+- **Use `/test-verification`** to verify the flow works correctly
+- **Monitor console logs** for user verification activity
+- **Keep environment variables secure** and never commit them
+- **Update role descriptions** to match your community's needs
 
 ---
 
-## 🔧 **Required Bot Permissions**
-
-### **Essential Permissions (Must Have)**
-- ✅ **Manage Roles** - To add/remove Verified/Unverified roles
-- ✅ **Manage Nicknames** - To set user nicknames during verification
-- ✅ **Send Messages** - To send verification messages and responses
-- ✅ **View Channels** - To see and access channels
-- ✅ **Use Slash Commands** - For all the `/` commands
-- ✅ **Read Message History** - To fetch and manage bot messages
-
-### **Optional but Recommended**
-- ✅ **Manage Messages** - To delete old verification messages (prevents bulk delete errors)
-- ✅ **Add Reactions** - For potential future features
-- ✅ **Use External Emojis** - For better embed formatting
-
-### **Privileged Gateway Intents (Developer Portal)**
-These must be enabled in Discord Developer Portal → Bot section:
-- ✅ **Server Members Intent** - To detect when users join/leave
-- ✅ **Message Content Intent** - To read message content
-
-## 🏗️ **Role Hierarchy Setup**
-
-**Critical:** Your bot's role must be **above** the roles it manages:
-
-```
-👑 Your Admin Role (top)
-🤖 ChongBot Role ← MUST BE HERE OR HIGHER
-✅ Verified Role
-❌ Unverified Role  
-👥 @everyone (bottom)
-```
-
-## 🎯 **Quick Setup in Discord**
-
-### **Method 1: Give Administrator (Easiest for Testing)**
-1. **Server Settings** → **Roles** → **ChongBot**
-2. Enable **"Administrator"** 
-3. This gives all permissions needed
-
-### **Method 2: Specific Permissions (Production)**
-1. **Server Settings** → **Roles** → **ChongBot**
-2. Enable these specific permissions:
-   - Manage Roles
-   - Manage Nicknames  
-   - Send Messages
-   - View Channels
-   - Use Slash Commands
-   - Read Message History
-   - Manage Messages (optional)
-
-## 🚨 **Common Permission Issues**
-
-### **"Missing Permissions" Errors:**
-- ❌ **Bot role is below managed roles** → Move bot role higher in hierarchy
-- ❌ **Missing "Manage Nicknames"** → Enable this permission
-- ❌ **Missing "Manage Roles"** → Enable this permission
-
-### **"Bulk Delete" Errors:**
-- ❌ **Missing "Manage Messages"** → Enable this permission (optional)
-
-## 🔍 **How to Check Current Permissions**
-
-Use the `/stats` command - it will show if the bot can access roles and channels properly.
-
-## 📋 **Permission Summary for Railway Deployment**
-
-When you deploy to Railway, make sure your Discord server has:
-
-1. **Bot Role Position**: Above Verified/Unverified roles
-2. **Required Permissions**: All the essential ones listed above  
-3. **Privileged Intents**: Enabled in Discord Developer Portal
-4. **Channel Access**: Bot can see #verify channel and restricted channels
-
-This permission setup will ensure your bot works perfectly both locally and on Railway! 🚀
-
-Built with ❤️ using Discord.js v14
+Built with ❤️ using Discord.js v14 | Deployed on Railway 🚀

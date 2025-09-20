@@ -1,6 +1,7 @@
 const { Client, GatewayIntentBits, Events, EmbedBuilder, PermissionFlagsBits, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
 const config = require('./config');
 const { handleCommands } = require('./commands');
+const express = require('express');
 
 // Create a new client instance
 const client = new Client({
@@ -15,6 +16,32 @@ const client = new Client({
 
 // Store original usernames to detect changes
 const originalUsernames = new Map();
+
+// Create Express server for health checks (Railway compatibility)
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.get('/', (req, res) => {
+  res.json({
+    status: 'online',
+    bot: client.user ? client.user.tag : 'Not logged in',
+    uptime: process.uptime(),
+    timestamp: new Date().toISOString()
+  });
+});
+
+app.get('/health', (req, res) => {
+  res.json({
+    status: client.isReady() ? 'healthy' : 'unhealthy',
+    guilds: client.guilds.cache.size,
+    users: client.users.cache.size,
+    uptime: process.uptime()
+  });
+});
+
+app.listen(PORT, () => {
+  console.log(`🌐 Health check server running on port ${PORT}`);
+});
 
 // When the client is ready, run this code (only once)
 client.once(Events.ClientReady, async (readyClient) => {

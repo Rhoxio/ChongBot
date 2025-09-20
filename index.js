@@ -218,7 +218,7 @@ async function setupVerificationMessage(channel) {
         },
         {
           name: '✨ How to get verified:',
-          value: '1. Click the **"Set My In-Game Name"** button below\n2. Enter your **exact in-game character name**\n3. You\'ll instantly get access to all channels!',
+          value: '1. Click the **"Complete Verification"** button below\n2. Enter your **exact in-game character name**\n3. Choose your role: **Pug**, **Prospect**, or **Guildie**\n4. You\'ll instantly get access to all channels!',
           inline: false
         },
         {
@@ -237,7 +237,7 @@ async function setupVerificationMessage(channel) {
     
     const button = new ButtonBuilder()
       .setCustomId('verify_nickname')
-      .setLabel('🎮 Set My In-Game Name')
+      .setLabel('🎮 Complete Verification')
       .setStyle(ButtonStyle.Primary);
     
     const row = new ActionRowBuilder().addComponents(button);
@@ -274,10 +274,10 @@ async function handleButtonInteraction(interaction) {
       }
     }
     
-    // Create nickname input modal
+    // Create verification modal with nickname and role selection
     const modal = new ModalBuilder()
-      .setCustomId('nickname_modal')
-      .setTitle('Set Your In-Game Name');
+      .setCustomId('verification_modal')
+      .setTitle('Complete Your Verification');
     
     const nicknameInput = new TextInputBuilder()
       .setCustomId('nickname_input')
@@ -288,8 +288,19 @@ async function handleButtonInteraction(interaction) {
       .setPlaceholder('Enter your exact in-game character name...')
       .setRequired(true);
     
-    const actionRow = new ActionRowBuilder().addComponents(nicknameInput);
-    modal.addComponents(actionRow);
+    const roleInput = new TextInputBuilder()
+      .setCustomId('role_input')
+      .setLabel('Choose your role: Pug, Prospect, or Guildie')
+      .setStyle(TextInputStyle.Short)
+      .setMinLength(3)
+      .setMaxLength(10)
+      .setPlaceholder('Type: Pug, Prospect, or Guildie')
+      .setRequired(true);
+    
+    const row1 = new ActionRowBuilder().addComponents(nicknameInput);
+    const row2 = new ActionRowBuilder().addComponents(roleInput);
+    
+    modal.addComponents(row1, row2);
     
     await interaction.showModal(modal);
   }
@@ -297,8 +308,9 @@ async function handleButtonInteraction(interaction) {
 
 // Handle modal submissions
 async function handleModalSubmit(interaction) {
-  if (interaction.customId === 'nickname_modal') {
+  if (interaction.customId === 'verification_modal') {
     const nickname = interaction.fields.getTextInputValue('nickname_input').trim();
+    const roleChoice = interaction.fields.getTextInputValue('role_input').trim().toLowerCase();
     const isOwner = interaction.guild.ownerId === interaction.user.id;
     
     // Validate nickname
@@ -319,15 +331,26 @@ async function handleModalSubmit(interaction) {
       return;
     }
     
+    // Validate role choice
+    const validRoles = ['pug', 'prospect', 'guildie'];
+    if (!validRoles.includes(roleChoice)) {
+      await interaction.reply({
+        content: '❌ Please choose a valid role: **Pug**, **Prospect**, or **Guildie**.',
+        ephemeral: true
+      });
+      return;
+    }
+    
     // Special handling for server owner (testing mode)
     if (isOwner) {
       const embed = new EmbedBuilder()
         .setColor(0x0099FF)
-        .setTitle('🧪 Test Mode - In-Game Name System Works!')
-        .setDescription(`Great! The in-game name verification is working perfectly. You entered: **${nickname}**`)
+        .setTitle('🧪 Test Mode - Verification System Works!')
+        .setDescription(`Great! The verification system is working perfectly!`)
         .addFields(
-          { name: '✅ System Test Results:', value: 'The in-game name verification modal is functioning correctly!', inline: false },
-          { name: '🎯 For Real Users:', value: 'Regular users would now get their Discord nickname set to their in-game name and be automatically verified.', inline: false },
+          { name: '📝 Test Data Received:', value: `**In-Game Name:** ${nickname}\n**Selected Role:** ${roleChoice}`, inline: false },
+          { name: '✅ System Test Results:', value: 'The verification modal with role selection is functioning correctly!', inline: false },
+          { name: '🎯 For Real Users:', value: 'Regular users would now get their nickname set, role assigned, and be automatically verified.', inline: false },
           { name: '👑 Owner Note:', value: 'As server owner, your roles cannot be modified by bots (Discord security feature).', inline: false }
         )
         .setFooter({ text: 'This is a test response for the server owner' })
@@ -338,7 +361,7 @@ async function handleModalSubmit(interaction) {
         ephemeral: true
       });
       
-      console.log(`🧪 Owner ${interaction.user.tag} tested modal with nickname: ${nickname}`);
+      console.log(`🧪 Owner ${interaction.user.tag} tested verification modal - Name: ${nickname}, Role: ${roleChoice}`);
       return;
     }
     
@@ -346,20 +369,27 @@ async function handleModalSubmit(interaction) {
       // Set the nickname
       await interaction.member.setNickname(nickname);
       
-      // Verify the user
+      // Verify the user FIRST (remove unverified, add verified)
       await verifyUser(interaction.member);
+      
+      // Then assign community role based on selection
+      const assignedRole = await assignCommunityRole(interaction.member, roleChoice);
       
       const embed = new EmbedBuilder()
         .setColor(0x00FF00)
-        .setTitle('✅ In-Game Name Verified!')
-        .setDescription(`Welcome to Chonglers, **${nickname}**! Your Discord name now matches your in-game name.`)
+        .setTitle('✅ Verification Complete!')
+        .setDescription(`Welcome to Chonglers, **${nickname}**! Your verification is complete.`)
         .addFields({
-          name: '🎉 You\'re all set!',
-          value: 'You now have access to all channels. Everyone will know who you are both in Discord and in-game!',
+          name: '🎮 Your Details',
+          value: `**In-Game Name:** ${nickname}\n**Community Role:** ${assignedRole}`,
           inline: false
         }, {
-          name: '🎮 Remember',
-          value: 'Keep your Discord nickname updated if you change your in-game character name.',
+          name: '🎉 You\'re all set!',
+          value: 'You now have access to all channels and your community role. Welcome to the guild!',
+          inline: false
+        }, {
+          name: '💡 Tips',
+          value: 'Keep your Discord nickname updated if you change your in-game character name. Use `/chongalation` for some guild wisdom!',
           inline: false
         })
         .setTimestamp();
@@ -369,7 +399,7 @@ async function handleModalSubmit(interaction) {
         ephemeral: true
       });
       
-      console.log(`✅ ${interaction.user.tag} verified with nickname: ${nickname}`);
+      console.log(`✅ ${interaction.user.tag} verified - Name: ${nickname}, Role: ${assignedRole}`);
       
     } catch (error) {
       console.error(`❌ Error setting nickname for ${interaction.user.tag}:`, error);
@@ -389,6 +419,46 @@ async function handleModalSubmit(interaction) {
       });
     }
   }
+}
+
+// Assign community role based on user selection
+async function assignCommunityRole(member, roleChoice) {
+  const roleMap = {
+    'pug': { id: config.pugRoleId, name: 'Pug' },
+    'prospect': { id: config.prospectRoleId, name: 'Prospect' },
+    'guildie': { id: config.guildieRoleId, name: 'Guildie' }
+  };
+  
+  const selectedRole = roleMap[roleChoice.toLowerCase()];
+  if (!selectedRole) {
+    throw new Error(`Invalid role choice: ${roleChoice}`);
+  }
+  
+  const discordRole = member.guild.roles.cache.get(selectedRole.id);
+  if (!discordRole) {
+    console.error(`❌ Role not found: ${selectedRole.name} (${selectedRole.id})`);
+    return `${selectedRole.name} (role not found)`;
+  }
+  
+  // Remove other community roles first
+  const allCommunityRoles = Object.values(roleMap).map(r => r.id).filter(id => id);
+  for (const roleId of allCommunityRoles) {
+    if (member.roles.cache.has(roleId) && roleId !== selectedRole.id) {
+      const roleToRemove = member.guild.roles.cache.get(roleId);
+      if (roleToRemove) {
+        await member.roles.remove(roleToRemove);
+        console.log(`🔄 Removed old community role ${roleToRemove.name} from ${member.user.tag}`);
+      }
+    }
+  }
+  
+  // Add the selected role
+  if (!member.roles.cache.has(selectedRole.id)) {
+    await member.roles.add(discordRole);
+    console.log(`🎭 Added ${selectedRole.name} role to ${member.user.tag}`);
+  }
+  
+  return selectedRole.name;
 }
 
 // Verify a user (remove unverified role, add verified role)

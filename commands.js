@@ -151,7 +151,8 @@ async function handleVerifyCommand(interaction) {
     .addFields(
       { name: 'User', value: `${targetUser.tag}`, inline: true },
       { name: 'Verified by', value: `${interaction.user.tag}`, inline: true },
-      { name: 'Current Nickname', value: member.nickname || 'None', inline: true }
+      { name: 'Current Nickname', value: member.nickname || 'None', inline: true },
+      { name: 'Community Roles', value: getCommunityRoles(member), inline: true }
     )
     .setTimestamp();
   
@@ -217,6 +218,7 @@ async function handleStatusCommand(interaction) {
       { name: 'Verified', value: isVerified ? 'Yes ✅' : 'No ❌', inline: true },
       { name: 'Has Verified Role', value: hasVerifiedRole ? 'Yes' : 'No', inline: true },
       { name: 'Has Unverified Role', value: member.roles.cache.has(config.unverifiedRoleId) ? 'Yes' : 'No', inline: true },
+      { name: 'Community Roles', value: getCommunityRoles(member), inline: true },
       { name: 'Join Date', value: member.joinedAt ? member.joinedAt.toDateString() : 'Unknown', inline: true }
     )
     .setThumbnail(targetUser.displayAvatarURL())
@@ -359,7 +361,7 @@ async function handleTestVerificationCommand(interaction) {
       .setTitle('🧪 Test Mode Activated')
       .setDescription('You are now temporarily **unverified** for testing purposes!')
       .addFields(
-        { name: '🎯 What to do now:', value: 'Go to the #verify channel and click the "Set My In-Game Name" button to test the verification flow.', inline: false },
+        { name: '🎯 What to do now:', value: 'Go to the #verify channel and click the "Complete Verification" button to test the enhanced verification flow with role selection.', inline: false },
         { name: '🔄 Reset:', value: 'Use `/verify @yourself` to restore your verified status when done testing.', inline: false }
       )
       .setFooter({ text: 'This is for testing only - you can restore your status anytime' })
@@ -516,6 +518,17 @@ async function handleAutoAssignRolesCommand(interaction) {
       content: `❌ Error during auto-role assignment: ${error.message}`
     });
   }
+}
+
+function getCommunityRoles(member) {
+  const config = require('./config');
+  const roles = [];
+  
+  if (member.roles.cache.has(config.pugRoleId)) roles.push('Pug');
+  if (member.roles.cache.has(config.prospectRoleId)) roles.push('Prospect');
+  if (member.roles.cache.has(config.guildieRoleId)) roles.push('Guildie');
+  
+  return roles.length > 0 ? roles.join(', ') : 'None';
 }
 
 async function handleChongalationCommand(interaction) {

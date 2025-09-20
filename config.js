@@ -14,6 +14,11 @@ module.exports = {
   unverifiedRoleId: process.env.UNVERIFIED_ROLE_ID,
   verifiedRoleId: process.env.VERIFIED_ROLE_ID,
   
+  // Community Roles
+  pugRoleId: process.env.PUG_ROLE_ID,
+  prospectRoleId: process.env.PROSPECT_ROLE_ID,
+  guildieRoleId: process.env.GUILDIE_ROLE_ID,
+  
   // Bot Settings
   requiredNicknameChange: process.env.REQUIRED_NICKNAME_CHANGE === 'true',
   adminUserIds: process.env.ADMIN_USER_IDS ? process.env.ADMIN_USER_IDS.split(',') : [],

@@ -334,7 +334,7 @@ async function handleModalSubmit(interaction) {
         .addOptions([
           new StringSelectMenuOptionBuilder()
             .setLabel('Pug')
-            .setDescription('New to the guild, learning the ropes')
+            .setDescription('Pick-up group member for one-off raids')
             .setValue('pug')
             .setEmoji('🐶'),
           new StringSelectMenuOptionBuilder()
@@ -457,16 +457,24 @@ async function assignCommunityRole(member, roleChoice) {
     'guildie': { id: config.guildieRoleId, name: 'Guildie' }
   };
   
+  console.log(`🔍 Debug - Role choice: ${roleChoice}`);
+  console.log(`🔍 Debug - Role map:`, roleMap);
+  
   const selectedRole = roleMap[roleChoice.toLowerCase()];
   if (!selectedRole) {
     throw new Error(`Invalid role choice: ${roleChoice}`);
   }
   
+  console.log(`🔍 Debug - Selected role: ${selectedRole.name} (${selectedRole.id})`);
+  
   const discordRole = member.guild.roles.cache.get(selectedRole.id);
   if (!discordRole) {
     console.error(`❌ Role not found: ${selectedRole.name} (${selectedRole.id})`);
+    console.log(`🔍 Debug - Available roles:`, member.guild.roles.cache.map(r => `${r.name} (${r.id})`));
     return `${selectedRole.name} (role not found)`;
   }
+  
+  console.log(`🔍 Debug - Found Discord role: ${discordRole.name}`);
   
   // Remove other community roles first
   const allCommunityRoles = Object.values(roleMap).map(r => r.id).filter(id => id);

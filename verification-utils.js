@@ -19,7 +19,7 @@ function createVerificationEmbed() {
       },
       {
         name: '🎭 Community Roles Available:',
-        value: '🐶 **Pug** - New to the guild, learning the ropes\n⚡ **Prospect** - Experienced player looking to join\n🛡️ **Guildie** - Full guild member',
+        value: '🐶 **Pug** - Pick-up group member for one-off raids\n⚡ **Prospect** - Experienced player looking to join\n🛡️ **Guildie** - Full guild member',
         inline: false
       },
       {

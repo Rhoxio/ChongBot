@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, Events, EmbedBuilder, PermissionFlagsBits, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
+const { Client, GatewayIntentBits, Events, EmbedBuilder, PermissionFlagsBits, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle, StringSelectMenuBuilder, StringSelectMenuOptionBuilder } = require('discord.js');
 const config = require('./config');
 const { handleCommands } = require('./commands');
 const express = require('express');
@@ -154,6 +154,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
       await handleButtonInteraction(interaction);
     } else if (interaction.isModalSubmit()) {
       await handleModalSubmit(interaction);
+    } else if (interaction.isStringSelectMenu()) {
+      await handleSelectMenuInteraction(interaction);
     }
   } catch (error) {
     console.error('❌ Error handling interaction:', error);
@@ -209,21 +211,26 @@ async function setupVerificationMessage(channel) {
     const embed = new EmbedBuilder()
       .setColor(0x00FF00)
       .setTitle('🎮 Welcome to Chonglers!')
-      .setDescription('**New members:** To access all channels, you need to set your Discord name to match your in-game name first.')
+      .setDescription('**New members:** Complete our quick 2-step verification to access all channels and join the community!')
       .addFields(
         {
-          name: '🎯 Why do we need this?',
-          value: 'This helps everyone know who they\'re talking to both in Discord and in-game, making communication much clearer during gameplay!',
+          name: '🎯 Why verify?',
+          value: 'Setting your Discord name to match your in-game character helps everyone connect your Discord messages to your in-game actions, making communication crystal clear during gameplay!',
           inline: false
         },
         {
-          name: '✨ How to get verified:',
-          value: '1. Click the **"Complete Verification"** button below\n2. Enter your **exact in-game character name**\n3. Choose your role: **Pug**, **Prospect**, or **Guildie**\n4. You\'ll instantly get access to all channels!',
+          name: '✨ Quick 2-Step Process:',
+          value: '**Step 1:** Click the button below and enter your exact in-game character name\n**Step 2:** Choose your community role from the dropdown menu\n\n🎉 **That\'s it!** You\'ll instantly gain access to all channels and your community role.',
           inline: false
         },
         {
-          name: '📝 Important',
-          value: 'Use your **exact in-game character name** - this ensures everyone can easily connect your Discord messages to your in-game actions.',
+          name: '🎭 Community Roles Available:',
+          value: '🐶 **Pug** - New to the guild, learning the ropes\n⚡ **Prospect** - Experienced player looking to join\n🛡️ **Guildie** - Full guild member',
+          inline: false
+        },
+        {
+          name: '💡 Pro Tip',
+          value: 'Use your **exact in-game character name** - this ensures seamless communication between Discord and the game!',
           inline: false
         },
         {
@@ -274,11 +281,11 @@ async function handleButtonInteraction(interaction) {
       }
     }
     
-    // Create verification modal with nickname and role selection
+    // Create nickname modal (step 1 of verification)
     const modal = new ModalBuilder()
-      .setCustomId('verification_modal')
-      .setTitle('Complete Your Verification');
-    
+      .setCustomId('nickname_modal')
+      .setTitle('Set Your In-Game Name');
+
     const nicknameInput = new TextInputBuilder()
       .setCustomId('nickname_input')
       .setLabel('What is your in-game character name?')
@@ -287,32 +294,20 @@ async function handleButtonInteraction(interaction) {
       .setMaxLength(32)
       .setPlaceholder('Enter your exact in-game character name...')
       .setRequired(true);
-    
-    const roleInput = new TextInputBuilder()
-      .setCustomId('role_input')
-      .setLabel('Choose your role: Pug, Prospect, or Guildie')
-      .setStyle(TextInputStyle.Short)
-      .setMinLength(3)
-      .setMaxLength(10)
-      .setPlaceholder('Type: Pug, Prospect, or Guildie')
-      .setRequired(true);
-    
+
     const row1 = new ActionRowBuilder().addComponents(nicknameInput);
-    const row2 = new ActionRowBuilder().addComponents(roleInput);
-    
-    modal.addComponents(row1, row2);
-    
+    modal.addComponents(row1);
+
     await interaction.showModal(modal);
   }
 }
 
 // Handle modal submissions
 async function handleModalSubmit(interaction) {
-  if (interaction.customId === 'verification_modal') {
+  if (interaction.customId === 'nickname_modal') {
     const nickname = interaction.fields.getTextInputValue('nickname_input').trim();
-    const roleChoice = interaction.fields.getTextInputValue('role_input').trim().toLowerCase();
     const isOwner = interaction.guild.ownerId === interaction.user.id;
-    
+
     // Validate nickname
     if (nickname.length < 1 || nickname.length > 32) {
       await interaction.reply({
@@ -321,7 +316,7 @@ async function handleModalSubmit(interaction) {
       });
       return;
     }
-    
+
     // Check if nickname is same as username
     if (nickname === interaction.user.username) {
       await interaction.reply({
@@ -330,58 +325,118 @@ async function handleModalSubmit(interaction) {
       });
       return;
     }
-    
-    // Validate role choice
-    const validRoles = ['pug', 'prospect', 'guildie'];
-    if (!validRoles.includes(roleChoice)) {
-      await interaction.reply({
-        content: '❌ Please choose a valid role: **Pug**, **Prospect**, or **Guildie**.',
-        ephemeral: true
-      });
-      return;
-    }
-    
-    // Special handling for server owner (testing mode)
-    if (isOwner) {
+
+    try {
+      // Set the nickname first
+      await interaction.member.setNickname(nickname);
+
+      // Special handling for server owner (testing mode)
+      if (isOwner) {
+        const embed = new EmbedBuilder()
+          .setColor(0x0099FF)
+          .setTitle('🧪 Test Mode - Nickname Set!')
+          .setDescription(`Great! Your nickname has been set to **${nickname}**.`)
+          .addFields(
+            { name: '✅ Nickname Test Results:', value: 'The nickname setting is working correctly!', inline: false },
+            { name: '🎯 For Real Users:', value: 'Regular users would now see a role selection menu and get verified.', inline: false },
+            { name: '👑 Owner Note:', value: 'As server owner, your roles cannot be modified by bots (Discord security feature).', inline: false }
+          )
+          .setFooter({ text: 'This is a test response for the server owner' })
+          .setTimestamp();
+
+        await interaction.reply({
+          embeds: [embed],
+          ephemeral: true
+        });
+
+        console.log(`🧪 Owner ${interaction.user.tag} tested nickname setting - Name: ${nickname}`);
+        return;
+      }
+
+      // Create role selection menu for regular users
+      const roleSelect = new StringSelectMenuBuilder()
+        .setCustomId('role_selection')
+        .setPlaceholder('Choose your community role...')
+        .setMinValues(1)
+        .setMaxValues(1)
+        .addOptions([
+          new StringSelectMenuOptionBuilder()
+            .setLabel('Pug')
+            .setDescription('New to the guild, learning the ropes')
+            .setValue('pug')
+            .setEmoji('🐶'),
+          new StringSelectMenuOptionBuilder()
+            .setLabel('Prospect')
+            .setDescription('Experienced player looking to join')
+            .setValue('prospect')
+            .setEmoji('⚡'),
+          new StringSelectMenuOptionBuilder()
+            .setLabel('Guildie')
+            .setDescription('Full guild member')
+            .setValue('guildie')
+            .setEmoji('🛡️')
+        ]);
+
+      const selectRow = new ActionRowBuilder().addComponents(roleSelect);
+
       const embed = new EmbedBuilder()
         .setColor(0x0099FF)
-        .setTitle('🧪 Test Mode - Verification System Works!')
-        .setDescription(`Great! The verification system is working perfectly!`)
-        .addFields(
-          { name: '📝 Test Data Received:', value: `**In-Game Name:** ${nickname}\n**Selected Role:** ${roleChoice}`, inline: false },
-          { name: '✅ System Test Results:', value: 'The verification modal with role selection is functioning correctly!', inline: false },
-          { name: '🎯 For Real Users:', value: 'Regular users would now get their nickname set, role assigned, and be automatically verified.', inline: false },
-          { name: '👑 Owner Note:', value: 'As server owner, your roles cannot be modified by bots (Discord security feature).', inline: false }
-        )
-        .setFooter({ text: 'This is a test response for the server owner' })
+        .setTitle('✅ Nickname Set!')
+        .setDescription(`Great! Your in-game name has been set to **${nickname}**.`)
+        .addFields({
+          name: '🎭 Final Step: Choose Your Role',
+          value: 'Please select your community role from the dropdown below to complete your verification.',
+          inline: false
+        })
         .setTimestamp();
-      
+
       await interaction.reply({
         embeds: [embed],
+        components: [selectRow],
         ephemeral: true
       });
-      
-      console.log(`🧪 Owner ${interaction.user.tag} tested verification modal - Name: ${nickname}, Role: ${roleChoice}`);
-      return;
+
+      console.log(`📝 ${interaction.user.tag} set nickname to: ${nickname}, showing role selection`);
+
+    } catch (error) {
+      console.error(`❌ Error setting nickname for ${interaction.user.tag}:`, error);
+
+      let errorMessage = '❌ There was an error setting your in-game name. ';
+      if (error.code === 50013) {
+        errorMessage += 'The bot doesn\'t have permission to change your nickname.';
+      } else if (error.code === 50035) {
+        errorMessage += 'The in-game name contains invalid characters.';
+      } else {
+        errorMessage += 'Please try again or contact a moderator.';
+      }
+
+      await interaction.reply({
+        content: errorMessage,
+        ephemeral: true
+      });
     }
+  }
+}
+
+// Handle select menu interactions
+async function handleSelectMenuInteraction(interaction) {
+  if (interaction.customId === 'role_selection') {
+    const roleChoice = interaction.values[0]; // Get the selected value
     
     try {
-      // Set the nickname
-      await interaction.member.setNickname(nickname);
-      
       // Verify the user FIRST (remove unverified, add verified)
       await verifyUser(interaction.member);
-      
+
       // Then assign community role based on selection
       const assignedRole = await assignCommunityRole(interaction.member, roleChoice);
-      
+
       const embed = new EmbedBuilder()
         .setColor(0x00FF00)
         .setTitle('✅ Verification Complete!')
-        .setDescription(`Welcome to Chonglers, **${nickname}**! Your verification is complete.`)
+        .setDescription(`Welcome to Chonglers, **${interaction.member.displayName}**! Your verification is complete.`)
         .addFields({
           name: '🎮 Your Details',
-          value: `**In-Game Name:** ${nickname}\n**Community Role:** ${assignedRole}`,
+          value: `**In-Game Name:** ${interaction.member.displayName}\n**Community Role:** ${assignedRole}`,
           inline: false
         }, {
           name: '🎉 You\'re all set!',
@@ -393,28 +448,21 @@ async function handleModalSubmit(interaction) {
           inline: false
         })
         .setTimestamp();
-      
-      await interaction.reply({
+
+      await interaction.update({
         embeds: [embed],
+        components: [], // Remove the select menu
         ephemeral: true
       });
-      
-      console.log(`✅ ${interaction.user.tag} verified - Name: ${nickname}, Role: ${assignedRole}`);
-      
+
+      console.log(`✅ ${interaction.user.tag} completed verification - Role: ${assignedRole}`);
+
     } catch (error) {
-      console.error(`❌ Error setting nickname for ${interaction.user.tag}:`, error);
-      
-      let errorMessage = '❌ There was an error setting your in-game name. ';
-      if (error.code === 50013) {
-        errorMessage += 'The bot doesn\'t have permission to change your nickname.';
-      } else if (error.code === 50035) {
-        errorMessage += 'The in-game name contains invalid characters.';
-      } else {
-        errorMessage += 'Please try again or contact a moderator.';
-      }
-      
-      await interaction.reply({
-        content: errorMessage,
+      console.error(`❌ Error completing verification for ${interaction.user.tag}:`, error);
+
+      await interaction.update({
+        content: '❌ There was an error completing your verification. Please try again or contact a moderator.',
+        components: [], // Remove the select menu
         ephemeral: true
       });
     }

@@ -1,6 +1,15 @@
 const { EmbedBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const config = require('../config/config');
 
-// Shared function to create verification embed
+/**
+ * Core verification system components
+ * Contains verification logic, embed creation, and button creation for the verification flow
+ */
+
+/**
+ * Creates the main verification embed shown in the #verify channel
+ * @returns {EmbedBuilder} The verification embed
+ */
 function createVerificationEmbed() {
   return new EmbedBuilder()
     .setColor(0x00FF00)
@@ -37,7 +46,10 @@ function createVerificationEmbed() {
     .setTimestamp();
 }
 
-// Shared function to create verification button
+/**
+ * Creates the verification button for the embed
+ * @returns {ButtonBuilder} The verification button
+ */
 function createVerificationButton() {
   return new ButtonBuilder()
     .setCustomId('verify_nickname')
@@ -45,7 +57,27 @@ function createVerificationButton() {
     .setStyle(ButtonStyle.Primary);
 }
 
+/**
+ * Verifies a user by removing unverified role and adding verified role
+ * @param {GuildMember} member - The Discord guild member to verify
+ */
+async function verifyUser(member) {
+  const unverifiedRole = member.guild.roles.cache.get(config.unverifiedRoleId);
+  const verifiedRole = member.guild.roles.cache.get(config.verifiedRoleId);
+  
+  if (unverifiedRole && member.roles.cache.has(config.unverifiedRoleId)) {
+    await member.roles.remove(unverifiedRole);
+    console.log(`🔓 Removed unverified role from ${member.user.tag}`);
+  }
+  
+  if (verifiedRole && !member.roles.cache.has(config.verifiedRoleId)) {
+    await member.roles.add(verifiedRole);
+    console.log(`✅ Added verified role to ${member.user.tag}`);
+  }
+}
+
 module.exports = {
   createVerificationEmbed,
-  createVerificationButton
+  createVerificationButton,
+  verifyUser
 };

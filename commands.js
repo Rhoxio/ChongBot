@@ -1,5 +1,6 @@
-const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits, ActionRowBuilder } = require('discord.js');
 const config = require('./config');
+const { createVerificationEmbed, createVerificationButton } = require('./verification-utils');
 
 const commands = [
   // Verify user manually
@@ -274,47 +275,21 @@ async function handleResetVerifyCommand(interaction) {
   }
   
   try {
-    // Clear existing messages from the bot
-    const messages = await verifyChannel.messages.fetch({ limit: 10 });
-    const botMessages = messages.filter(msg => msg.author.id === interaction.client.user.id);
-    if (botMessages.size > 0) {
-      await verifyChannel.bulkDelete(botMessages);
+    // Clear existing messages from the bot (with better error handling)
+    try {
+      const messages = await verifyChannel.messages.fetch({ limit: 10 });
+      const botMessages = messages.filter(msg => msg.author.id === interaction.client.user.id);
+      if (botMessages.size > 0) {
+        await verifyChannel.bulkDelete(botMessages);
+      }
+    } catch (deleteError) {
+      console.log('⚠️ Could not delete old messages (they may already be gone):', deleteError.message);
+      // Continue anyway - this isn't critical
     }
     
-    // Create new verification message
-    const embed = new EmbedBuilder()
-      .setColor(0x00FF00)
-      .setTitle('🎮 Welcome to Chonglers!')
-      .setDescription('**New members:** To access all channels, you need to set your Discord name to match your in-game name first.')
-      .addFields(
-        {
-          name: '🎯 Why do we need this?',
-          value: 'This helps everyone know who they\'re talking to both in Discord and in-game, making communication much clearer during gameplay!',
-          inline: false
-        },
-        {
-          name: '✨ How to get verified:',
-          value: '1. Click the **"Set My In-Game Name"** button below\n2. Enter your **exact in-game character name**\n3. You\'ll instantly get access to all channels!',
-          inline: false
-        },
-        {
-          name: '📝 Important',
-          value: 'Use your **exact in-game character name** - this ensures everyone can easily connect your Discord messages to your in-game actions.',
-          inline: false
-        },
-        {
-          name: '🔄 Already verified?',
-          value: 'If you need to update your name or re-verify, just click the button again!',
-          inline: false
-        }
-      )
-      .setFooter({ text: 'This ensures clear communication across all platforms!' })
-      .setTimestamp();
-    
-    const button = new ButtonBuilder()
-      .setCustomId('verify_nickname')
-      .setLabel('🎮 Set My In-Game Name')
-      .setStyle(ButtonStyle.Primary);
+    // Create new verification message using shared functions
+    const embed = createVerificationEmbed();
+    const button = createVerificationButton();
     
     const row = new ActionRowBuilder().addComponents(button);
     
@@ -427,7 +402,7 @@ async function handleForceSetupCommand(interaction) {
     
     const button = new ButtonBuilder()
       .setCustomId('verify_nickname')
-      .setLabel('🎮 Set My In-Game Name')
+      .setLabel('🎮 Complete Verification')
       .setStyle(ButtonStyle.Primary);
     
     const row = new ActionRowBuilder().addComponents(button);

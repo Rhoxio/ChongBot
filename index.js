@@ -1,6 +1,7 @@
 const { Client, GatewayIntentBits, Events, EmbedBuilder, PermissionFlagsBits, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle, StringSelectMenuBuilder, StringSelectMenuOptionBuilder } = require('discord.js');
 const config = require('./config');
 const { handleCommands } = require('./commands');
+const { createVerificationEmbed, createVerificationButton } = require('./verification-utils');
 const express = require('express');
 
 // Create a new client instance
@@ -42,6 +43,7 @@ app.get('/health', (req, res) => {
 app.listen(PORT, () => {
   console.log(`🌐 Health check server running on port ${PORT}`);
 });
+
 
 // When the client is ready, run this code (only once)
 client.once(Events.ClientReady, async (readyClient) => {
@@ -137,7 +139,8 @@ client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
     
     // Check if they changed their nickname to something different from their original username
     if (newNickname && newNickname !== originalUsername) {
-      await handleNicknameVerification(newMember);
+      // Note: Verification now happens only after role selection in the verification flow
+      console.log(`📝 ${newMember.user.tag} set nickname to: ${newNickname} (verification pending role selection)`);
     }
     
   } catch (error) {
@@ -160,12 +163,16 @@ client.on(Events.InteractionCreate, async (interaction) => {
   } catch (error) {
     console.error('❌ Error handling interaction:', error);
     
-    // Only try to respond if we haven't already responded
+    // Only try to respond if we haven't already responded and interaction isn't expired
     if (!interaction.replied && !interaction.deferred) {
       try {
         await interaction.reply({ content: 'There was an error processing your request!', ephemeral: true });
       } catch (replyError) {
-        console.error('❌ Could not send error reply:', replyError);
+        if (replyError.code === 10062) {
+          console.log('ℹ️ Interaction expired, cannot reply');
+        } else {
+          console.error('❌ Could not send error reply:', replyError);
+        }
       }
     }
   }
@@ -208,44 +215,9 @@ async function setupVerificationMessage(channel) {
       }
     }
     
-    const embed = new EmbedBuilder()
-      .setColor(0x00FF00)
-      .setTitle('🎮 Welcome to Chonglers!')
-      .setDescription('**New members:** Complete our quick 2-step verification to access all channels and join the community!')
-      .addFields(
-        {
-          name: '🎯 Why verify?',
-          value: 'Setting your Discord name to match your in-game character helps everyone connect your Discord messages to your in-game actions, making communication crystal clear during gameplay!',
-          inline: false
-        },
-        {
-          name: '✨ Quick 2-Step Process:',
-          value: '**Step 1:** Click the button below and enter your exact in-game character name\n**Step 2:** Choose your community role from the dropdown menu\n\n🎉 **That\'s it!** You\'ll instantly gain access to all channels and your community role.',
-          inline: false
-        },
-        {
-          name: '🎭 Community Roles Available:',
-          value: '🐶 **Pug** - New to the guild, learning the ropes\n⚡ **Prospect** - Experienced player looking to join\n🛡️ **Guildie** - Full guild member',
-          inline: false
-        },
-        {
-          name: '💡 Pro Tip',
-          value: 'Use your **exact in-game character name** - this ensures seamless communication between Discord and the game!',
-          inline: false
-        },
-        {
-          name: '🔄 Already verified?',
-          value: 'If you need to update your name or re-verify, just click the button again!',
-          inline: false
-        }
-      )
-      .setFooter({ text: 'This ensures clear communication across all platforms!' })
-      .setTimestamp();
+    const embed = createVerificationEmbed();
     
-    const button = new ButtonBuilder()
-      .setCustomId('verify_nickname')
-      .setLabel('🎮 Complete Verification')
-      .setStyle(ButtonStyle.Primary);
+    const button = createVerificationButton();
     
     const row = new ActionRowBuilder().addComponents(button);
     
@@ -410,10 +382,18 @@ async function handleModalSubmit(interaction) {
         errorMessage += 'Please try again or contact a moderator.';
       }
 
-      await interaction.reply({
-        content: errorMessage,
-        ephemeral: true
-      });
+      try {
+        await interaction.reply({
+          content: errorMessage,
+          ephemeral: true
+        });
+      } catch (replyError) {
+        if (replyError.code === 10062) {
+          console.log('ℹ️ Cannot reply to expired interaction, but nickname was set successfully');
+        } else {
+          console.error('❌ Could not send error reply:', replyError);
+        }
+      }
     }
   }
 }
@@ -525,50 +505,9 @@ async function verifyUser(member) {
   }
 }
 
-// Handle nickname verification
-async function handleNicknameVerification(member) {
-  try {
-    const unverifiedRole = member.guild.roles.cache.get(config.unverifiedRoleId);
-    const verifiedRole = member.guild.roles.cache.get(config.verifiedRoleId);
-    
-    // Check if they have the unverified role
-    if (!member.roles.cache.has(config.unverifiedRoleId)) {
-      console.log(`ℹ️ ${member.user.tag} already verified, skipping`);
-      return;
-    }
-    
-    // Remove unverified role and add verified role
-    if (unverifiedRole) {
-      await member.roles.remove(unverifiedRole);
-      console.log(`🔓 Removed unverified role from ${member.user.tag}`);
-    }
-    
-    if (verifiedRole) {
-      await member.roles.add(verifiedRole);
-      console.log(`✅ Added verified role to ${member.user.tag}`);
-    }
-    
-    // Send confirmation message
-    const welcomeChannel = member.guild.channels.cache.get(config.welcomeChannelId);
-    if (welcomeChannel) {
-      const embed = new EmbedBuilder()
-        .setColor(0x00FF00)
-        .setTitle(config.messages.verified.title)
-        .setDescription(config.messages.verified.description)
-        .setTimestamp();
-      
-      await welcomeChannel.send({
-        content: `${member}`,
-        embeds: [embed]
-      });
-    }
-    
-    console.log(`🎉 Successfully verified ${member.user.tag} with nickname: ${member.nickname}`);
-    
-  } catch (error) {
-    console.error(`❌ Error verifying ${member.user.tag}:`, error);
-  }
-}
+// NOTE: handleNicknameVerification function removed
+// Verification now happens only after both nickname AND role selection are complete
+// See handleSelectMenuInteraction function for the proper verification flow
 
 // Handle errors
 client.on(Events.Error, error => {
@@ -580,4 +519,5 @@ process.on('unhandledRejection', error => {
 });
 
 // Login to Discord with your client's token
+// Start the bot
 client.login(config.token);

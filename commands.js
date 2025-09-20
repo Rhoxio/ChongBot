@@ -61,6 +61,15 @@ const commands = [
     .setName('auto-assign-roles')
     .setDescription('Assign unverified role to all members who have neither verified nor unverified role')
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles),
+    
+  // Send a random Chongalation quote
+  new SlashCommandBuilder()
+    .setName('chongalation')
+    .setDescription('Share a revered quote from the Chonglers community')
+    .addStringOption(option =>
+      option.setName('author')
+        .setDescription('Get a quote from a specific author (optional)')
+        .setRequired(false)),
 ];
 
 async function handleCommands(interaction) {
@@ -91,6 +100,9 @@ async function handleCommands(interaction) {
         break;
       case 'auto-assign-roles':
         await handleAutoAssignRolesCommand(interaction);
+        break;
+      case 'chongalation':
+        await handleChongalationCommand(interaction);
         break;
       default:
         await interaction.reply({ content: 'Unknown command!', ephemeral: true });
@@ -502,6 +514,57 @@ async function handleAutoAssignRolesCommand(interaction) {
     console.error(`❌ Error in auto-assign roles command:`, error);
     await interaction.editReply({
       content: `❌ Error during auto-role assignment: ${error.message}`
+    });
+  }
+}
+
+async function handleChongalationCommand(interaction) {
+  const { getRandomChongalation, getChongalationByAuthor, getAllAuthors } = require('./chongalations');
+  
+  try {
+    const authorFilter = interaction.options.getString('author');
+    let chongalation;
+    
+    if (authorFilter) {
+      chongalation = getChongalationByAuthor(authorFilter);
+      if (!chongalation) {
+        const authors = getAllAuthors();
+        await interaction.reply({
+          content: `❌ No quotes found for "${authorFilter}". Available authors: ${authors.join(', ')}`,
+          ephemeral: true
+        });
+        return;
+      }
+    } else {
+      chongalation = getRandomChongalation();
+    }
+    
+    const embed = new EmbedBuilder()
+      .setColor(0xFFD700) // Gold color for the sacred texts
+      .setTitle('📜 Chongalation')
+      .setDescription(`*"${chongalation.quote}"*`)
+      .addFields({
+        name: '📖 Source',
+        value: `**${chongalation.author}** - ${chongalation.reference}`,
+        inline: false
+      })
+      .setFooter({ 
+        text: 'Chongalations are revered quotes from the Chonglers community, preserved with reverence.' 
+      })
+      .setTimestamp();
+    
+    // Add the emoji as a reaction-style element in the description
+    embed.setDescription(`*"${chongalation.quote}"*\n\n${chongalation.emoji} 🙏`);
+    
+    await interaction.reply({ embeds: [embed] });
+    
+    console.log(`📜 ${interaction.user.tag} shared a Chongalation: "${chongalation.quote}" by ${chongalation.author}`);
+    
+  } catch (error) {
+    console.error(`❌ Error in chongalation command:`, error);
+    await interaction.reply({
+      content: '❌ Error retrieving Chongalation. The sacred texts are temporarily unavailable.',
+      ephemeral: true
     });
   }
 }

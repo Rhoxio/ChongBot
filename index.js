@@ -174,11 +174,36 @@ client.on(Events.InteractionCreate, async (interaction) => {
 // Set up persistent verification message in verify channel
 async function setupVerificationMessage(channel) {
   try {
-    // Clear any existing messages from the bot
+    // Check if verification message already exists
     const messages = await channel.messages.fetch({ limit: 10 });
-    const botMessages = messages.filter(msg => msg.author.id === client.user.id);
+    const botMessages = messages.filter(msg => 
+      msg.author.id === client.user.id && 
+      msg.embeds.length > 0 && 
+      msg.embeds[0].title && 
+      msg.embeds[0].title.includes('Welcome to Chonglers')
+    );
+    
+    // If verification message already exists, don't create a new one
     if (botMessages.size > 0) {
-      await channel.bulkDelete(botMessages);
+      console.log(`✅ Verification message already exists in #${channel.name}`);
+      return;
+    }
+    
+    // Only clear old messages if we're creating a new one
+    const allBotMessages = messages.filter(msg => msg.author.id === client.user.id);
+    if (allBotMessages.size > 0) {
+      try {
+        await channel.bulkDelete(allBotMessages);
+      } catch (error) {
+        // If bulk delete fails, delete individually
+        for (const message of allBotMessages.values()) {
+          try {
+            await message.delete();
+          } catch (deleteError) {
+            console.log(`Could not delete message: ${deleteError.message}`);
+          }
+        }
+      }
     }
     
     const embed = new EmbedBuilder()

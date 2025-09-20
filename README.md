@@ -169,4 +169,79 @@ If you need help with setup or encounter issues:
 
 ---
 
+## 🔧 **Required Bot Permissions**
+
+### **Essential Permissions (Must Have)**
+- ✅ **Manage Roles** - To add/remove Verified/Unverified roles
+- ✅ **Manage Nicknames** - To set user nicknames during verification
+- ✅ **Send Messages** - To send verification messages and responses
+- ✅ **View Channels** - To see and access channels
+- ✅ **Use Slash Commands** - For all the `/` commands
+- ✅ **Read Message History** - To fetch and manage bot messages
+
+### **Optional but Recommended**
+- ✅ **Manage Messages** - To delete old verification messages (prevents bulk delete errors)
+- ✅ **Add Reactions** - For potential future features
+- ✅ **Use External Emojis** - For better embed formatting
+
+### **Privileged Gateway Intents (Developer Portal)**
+These must be enabled in Discord Developer Portal → Bot section:
+- ✅ **Server Members Intent** - To detect when users join/leave
+- ✅ **Message Content Intent** - To read message content
+
+## 🏗️ **Role Hierarchy Setup**
+
+**Critical:** Your bot's role must be **above** the roles it manages:
+
+```
+👑 Your Admin Role (top)
+🤖 ChongBot Role ← MUST BE HERE OR HIGHER
+✅ Verified Role
+❌ Unverified Role  
+👥 @everyone (bottom)
+```
+
+## 🎯 **Quick Setup in Discord**
+
+### **Method 1: Give Administrator (Easiest for Testing)**
+1. **Server Settings** → **Roles** → **ChongBot**
+2. Enable **"Administrator"** 
+3. This gives all permissions needed
+
+### **Method 2: Specific Permissions (Production)**
+1. **Server Settings** → **Roles** → **ChongBot**
+2. Enable these specific permissions:
+   - Manage Roles
+   - Manage Nicknames  
+   - Send Messages
+   - View Channels
+   - Use Slash Commands
+   - Read Message History
+   - Manage Messages (optional)
+
+## 🚨 **Common Permission Issues**
+
+### **"Missing Permissions" Errors:**
+- ❌ **Bot role is below managed roles** → Move bot role higher in hierarchy
+- ❌ **Missing "Manage Nicknames"** → Enable this permission
+- ❌ **Missing "Manage Roles"** → Enable this permission
+
+### **"Bulk Delete" Errors:**
+- ❌ **Missing "Manage Messages"** → Enable this permission (optional)
+
+## 🔍 **How to Check Current Permissions**
+
+Use the `/stats` command - it will show if the bot can access roles and channels properly.
+
+## 📋 **Permission Summary for Railway Deployment**
+
+When you deploy to Railway, make sure your Discord server has:
+
+1. **Bot Role Position**: Above Verified/Unverified roles
+2. **Required Permissions**: All the essential ones listed above  
+3. **Privileged Intents**: Enabled in Discord Developer Portal
+4. **Channel Access**: Bot can see #verify channel and restricted channels
+
+This permission setup will ensure your bot works perfectly both locally and on Railway! 🚀
+
 Built with ❤️ using Discord.js v14

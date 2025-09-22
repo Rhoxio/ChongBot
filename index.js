@@ -24,8 +24,15 @@ client.once(Events.ClientReady, async (readyClient) => {
   console.log(`✅ Ready! Logged in as ${readyClient.user.tag}`);
   
   try {
+    console.log(`🔧 Bot configuration loaded:`);
+    console.log(`   Target Guild ID: ${config.guildId}`);
+    console.log(`   Bot Client ID: ${config.clientId}`);
+    console.log(`   Verify Channel ID: ${config.verifyChannelId}`);
+    
     const guild = await client.guilds.fetch(config.guildId);
-    console.log(`🏠 Connected to guild: ${guild.name}`);
+    console.log(`🏠 Connected to guild: ${guild.name} (ID: ${guild.id})`);
+    console.log(`👑 Guild owner: ${guild.ownerId}`);
+    console.log(`👥 Guild member count: ${guild.memberCount}`);
     
     // Verify roles exist
     const unverifiedRole = guild.roles.cache.get(config.unverifiedRoleId);
@@ -33,9 +40,19 @@ client.once(Events.ClientReady, async (readyClient) => {
     const verifyChannel = guild.channels.cache.get(config.verifyChannelId);
     
     console.log(`🔍 Setup Check:`);
-    console.log(`   Unverified Role: ${unverifiedRole ? `✅ ${unverifiedRole.name}` : '❌ Not found'}`);
-    console.log(`   Verified Role: ${verifiedRole ? `✅ ${verifiedRole.name}` : '❌ Not found'}`);
-    console.log(`   Verify Channel: ${verifyChannel ? `✅ #${verifyChannel.name}` : '❌ Not found'}`);
+    console.log(`   Unverified Role: ${unverifiedRole ? `✅ ${unverifiedRole.name} (ID: ${unverifiedRole.id})` : `❌ Not found (Looking for ID: ${config.unverifiedRoleId})`}`);
+    console.log(`   Verified Role: ${verifiedRole ? `✅ ${verifiedRole.name} (ID: ${verifiedRole.id})` : `❌ Not found (Looking for ID: ${config.verifiedRoleId})`}`);
+    console.log(`   Verify Channel: ${verifyChannel ? `✅ #${verifyChannel.name} (ID: ${verifyChannel.id})` : `❌ Not found (Looking for ID: ${config.verifyChannelId})`}`);
+    
+    // Check community roles
+    const pugRole = guild.roles.cache.get(config.pugRoleId);
+    const prospectRole = guild.roles.cache.get(config.prospectRoleId);
+    const guildieRole = guild.roles.cache.get(config.guildieRoleId);
+    
+    console.log(`🎭 Community Roles Check:`);
+    console.log(`   Pug Role: ${pugRole ? `✅ ${pugRole.name}` : `❌ Not found (ID: ${config.pugRoleId})`}`);
+    console.log(`   Prospect Role: ${prospectRole ? `✅ ${prospectRole.name}` : `❌ Not found (ID: ${config.prospectRoleId})`}`);
+    console.log(`   Guildie Role: ${guildieRole ? `✅ ${guildieRole.name}` : `❌ Not found (ID: ${config.guildieRoleId})`}`);
     
     // Send persistent verification message to verify channel
     if (verifyChannel) {

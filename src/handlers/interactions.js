@@ -215,6 +215,9 @@ async function handleSelectMenuInteraction(interaction) {
         ephemeral: true
       });
 
+      // Send auto logs message to configured channel
+      await sendAutoLogsMessage(interaction.member, assignedRole);
+
       console.log(`✅ ${interaction.user.tag} completed verification - Role: ${assignedRole}`);
 
     } catch (error) {
@@ -226,6 +229,61 @@ async function handleSelectMenuInteraction(interaction) {
         ephemeral: true
       });
     }
+  }
+}
+
+/**
+ * Sends an auto logs message to the configured channel when someone completes verification
+ * @param {GuildMember} member - The member who completed verification
+ * @param {string} assignedRole - The role that was assigned
+ */
+async function sendAutoLogsMessage(member, assignedRole) {
+  if (!config.autoLogsChannelId) {
+    console.log('ℹ️ Auto logs channel not configured, skipping auto logs message');
+    return;
+  }
+
+  try {
+    const autoLogsChannel = member.guild.channels.cache.get(config.autoLogsChannelId);
+    
+    if (!autoLogsChannel) {
+      console.error(`❌ Auto logs channel not found (ID: ${config.autoLogsChannelId})`);
+      return;
+    }
+
+    // Clean the character name for URL safety (same logic as /logs command)
+    let characterName = member.displayName;
+    const originalName = characterName;
+    characterName = characterName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+
+    if (!characterName) {
+      console.error(`❌ Could not create valid character name from "${originalName}" for auto logs`);
+      return;
+    }
+
+    // Generate the Warcraft Logs URL
+    const logsUrl = `https://classic.warcraftlogs.com/character/us/pagle/${characterName}`;
+
+    const embed = new EmbedBuilder()
+      .setColor(0x00FF00)
+      .setTitle(`🎉 New Member Verified - ${member.displayName}`)
+      .setDescription(`[📊 View ${characterName}'s logs on Pagle](${logsUrl})`)
+      .addFields(
+        { name: 'Discord User', value: member.user.tag, inline: true },
+        { name: 'In-Game Name', value: member.displayName, inline: true },
+        { name: 'Community Role', value: assignedRole, inline: true },
+        { name: 'Server', value: 'Pagle (US)', inline: true },
+        { name: 'Expansion', value: 'Mists of Pandaria Classic', inline: true }
+      )
+      .setThumbnail(member.user.displayAvatarURL())
+      .setFooter({ text: 'Auto-generated from verification completion' })
+      .setTimestamp();
+
+    await autoLogsChannel.send({ embeds: [embed] });
+    console.log(`📊 Sent auto logs message for ${member.user.tag} (${characterName}) to #${autoLogsChannel.name}`);
+
+  } catch (error) {
+    console.error(`❌ Error sending auto logs message for ${member.user.tag}:`, error);
   }
 }
 

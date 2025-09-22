@@ -9,6 +9,7 @@ module.exports = {
   guildId: process.env.GUILD_ID,
   verifyChannelId: process.env.VERIFY_CHANNEL_ID,
   generalChannelId: process.env.GENERAL_CHANNEL_ID,
+  autoLogsChannelId: process.env.AUTO_LOGS_CHANNEL_ID,
   
   // Role Configuration
   unverifiedRoleId: process.env.UNVERIFIED_ROLE_ID,

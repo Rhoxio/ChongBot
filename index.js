@@ -3,7 +3,7 @@ const config = require('./src/config/config');
 const { handleCommands } = require('./src/handlers/commands');
 const { createVerificationEmbed, createVerificationButton } = require('./src/core/verification');
 const { handleButtonInteraction, handleModalSubmit, handleSelectMenuInteraction } = require('./src/handlers/interactions');
-const { setupMemberEventListeners, initializeMemberRoles } = require('./src/handlers/members');
+const { setupMemberEventListeners } = require('./src/handlers/members');
 const { createHealthServer } = require('./src/core/server');
 
 // Create a new client instance
@@ -59,8 +59,6 @@ client.once(Events.ClientReady, async (readyClient) => {
       await setupVerificationMessage(verifyChannel);
     }
     
-    // Initialize member roles using the members module
-    await initializeMemberRoles(guild);
     console.log(`🚀 Bot is ready with button-based verification!`);
   } catch (error) {
     console.error('❌ Error during startup:', error);
@@ -96,10 +94,14 @@ client.on(Events.InteractionCreate, async (interaction) => {
       } catch (replyError) {
         if (replyError.code === 10062) {
           console.log('ℹ️ Interaction expired, cannot reply');
+        } else if (replyError.code === 40060) {
+          console.log('ℹ️ Interaction already acknowledged, cannot reply again');
         } else {
           console.error('❌ Could not send error reply:', replyError);
         }
       }
+    } else {
+      console.log('ℹ️ Interaction already handled, skipping error reply');
     }
   }
 });

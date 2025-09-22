@@ -2,6 +2,7 @@ const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits, ActionRowBuilder
 const config = require('../config/config');
 const { createVerificationEmbed, createVerificationButton } = require('../core/verification');
 const { getRandomChongalation, getChongalationByAuthor, getAllAuthors } = require('./chongalations');
+const { assignCommunityRole } = require('../core/roles');
 
 const commands = [
   // Verify user manually
@@ -178,26 +179,30 @@ async function handleVerifyCommand(interaction) {
     return;
   }
   
-  // Remove unverified role (admin needs to manually assign a community role)
-  if (unverifiedRole && member.roles.cache.has(config.unverifiedRoleId)) {
-    await member.roles.remove(unverifiedRole);
+  try {
+    // Assign Pug role (which will also remove unverified role)
+    const assignedRole = await assignCommunityRole(member, 'pug');
+    
+    const embed = new EmbedBuilder()
+      .setColor(0x00FF00)
+      .setTitle('User Manually Verified ✅')
+      .setDescription(`${targetUser.tag} has been manually verified by ${interaction.user.tag}`)
+      .addFields(
+        { name: 'User', value: `${targetUser.tag}`, inline: true },
+        { name: 'Verified by', value: `${interaction.user.tag}`, inline: true },
+        { name: 'Role Assigned', value: assignedRole, inline: true },
+        { name: 'Current Nickname', value: member.nickname || 'None', inline: true }
+      )
+      .setTimestamp();
+
+    await interaction.reply({ embeds: [embed], ephemeral: true });
+  } catch (error) {
+    console.error(`❌ Error verifying ${targetUser.tag}:`, error);
+    await interaction.reply({
+      content: `❌ Error verifying ${targetUser.tag}. Please check bot permissions and role configuration.`,
+      ephemeral: true
+    });
   }
-  
-  const embed = new EmbedBuilder()
-    .setColor(0x00FF00)
-    .setTitle('User Manually Verified ✅')
-    .setDescription(`${targetUser.tag} has been manually verified by ${interaction.user.tag}`)
-    .addFields(
-      { name: 'User', value: `${targetUser.tag}`, inline: true },
-      { name: 'Verified by', value: `${interaction.user.tag}`, inline: true },
-      { name: 'Current Nickname', value: member.nickname || 'None', inline: true },
-      { name: 'Community Roles', value: getCommunityRoles(member), inline: true }
-    )
-    .setTimestamp();
-  
-  await interaction.reply({ embeds: [embed] });
-  
-  console.log(`👤 ${targetUser.tag} manually verified by ${interaction.user.tag}`);
 }
 
 async function handleUnverifyCommand(interaction) {

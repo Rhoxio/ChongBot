@@ -73,10 +73,11 @@ async function initializeMemberRoles(guild) {
         
         // Check if member needs unverified role
         const hasUnverified = member.roles.cache.has(config.unverifiedRoleId);
-        const hasVerified = member.roles.cache.has(config.verifiedRoleId);
+        const hasCommunityRole = [config.pugRoleId, config.prospectRoleId, config.guildieRoleId]
+          .some(roleId => roleId && member.roles.cache.has(roleId));
         
-        // If they have neither role, assign unverified
-        if (!hasUnverified && !hasVerified) {
+        // If they have no verification-related roles, assign unverified
+        if (!hasUnverified && !hasCommunityRole) {
           try {
             await member.roles.add(unverifiedRole);
             assignedRoles++;

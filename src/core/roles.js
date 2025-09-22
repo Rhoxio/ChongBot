@@ -29,7 +29,14 @@ async function assignCommunityRole(member, roleChoice) {
     return `${selectedRole.name} (role not found)`;
   }
   
-  // Remove other community roles first
+  // Remove unverified role first (since they're now getting a community role)
+  const unverifiedRole = member.guild.roles.cache.get(config.unverifiedRoleId);
+  if (unverifiedRole && member.roles.cache.has(config.unverifiedRoleId)) {
+    await member.roles.remove(unverifiedRole);
+    console.log(`🔓 Removed unverified role from ${member.user.tag}`);
+  }
+  
+  // Remove other community roles
   const allCommunityRoles = Object.values(roleMap).map(r => r.id).filter(id => id);
   for (const roleId of allCommunityRoles) {
     if (member.roles.cache.has(roleId) && roleId !== selectedRole.id) {

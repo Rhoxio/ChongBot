@@ -1,6 +1,5 @@
 const { EmbedBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder } = require('discord.js');
 const config = require('../config/config');
-const { verifyUser } = require('../core/verification');
 const { assignCommunityRole } = require('../core/roles');
 
 /**
@@ -188,10 +187,7 @@ async function handleSelectMenuInteraction(interaction) {
     const roleChoice = interaction.values[0]; // Get the selected value
     
     try {
-      // Verify the user FIRST (remove unverified, add verified)
-      await verifyUser(interaction.member);
-
-      // Then assign community role based on selection
+      // Remove unverified role and assign community role based on selection
       const assignedRole = await assignCommunityRole(interaction.member, roleChoice);
 
       const embed = new EmbedBuilder()

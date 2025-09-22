@@ -167,24 +167,20 @@ async function handleVerifyCommand(interaction) {
   const member = await interaction.guild.members.fetch(targetUser.id);
   
   const unverifiedRole = interaction.guild.roles.cache.get(config.unverifiedRoleId);
-  const verifiedRole = interaction.guild.roles.cache.get(config.verifiedRoleId);
   
-  // Check if already verified
-  if (!member.roles.cache.has(config.unverifiedRoleId)) {
+  // Check if already verified (has any community role)
+  const communityRoles = getCommunityRoles(member);
+  if (communityRoles !== 'None') {
     await interaction.reply({
-      content: `${targetUser.tag} is already verified!`,
+      content: `${targetUser.tag} is already verified with community role(s): ${communityRoles}`,
       ephemeral: true
     });
     return;
   }
   
-  // Remove unverified role and add verified role
-  if (unverifiedRole) {
+  // Remove unverified role (admin needs to manually assign a community role)
+  if (unverifiedRole && member.roles.cache.has(config.unverifiedRoleId)) {
     await member.roles.remove(unverifiedRole);
-  }
-  
-  if (verifiedRole) {
-    await member.roles.add(verifiedRole);
   }
   
   const embed = new EmbedBuilder()
@@ -209,10 +205,10 @@ async function handleUnverifyCommand(interaction) {
   const member = await interaction.guild.members.fetch(targetUser.id);
   
   const unverifiedRole = interaction.guild.roles.cache.get(config.unverifiedRoleId);
-  const verifiedRole = interaction.guild.roles.cache.get(config.verifiedRoleId);
   
-  // Check if already unverified
-  if (member.roles.cache.has(config.unverifiedRoleId)) {
+  // Check if already unverified (has unverified role and no community roles)
+  const communityRoles = getCommunityRoles(member);
+  if (member.roles.cache.has(config.unverifiedRoleId) && communityRoles === 'None') {
     await interaction.reply({
       content: `${targetUser.tag} is already unverified!`,
       ephemeral: true
@@ -220,13 +216,24 @@ async function handleUnverifyCommand(interaction) {
     return;
   }
   
-  // Add unverified role and remove verified role
-  if (unverifiedRole) {
-    await member.roles.add(unverifiedRole);
+  // Remove all community roles and add unverified role
+  const roleMap = {
+    'pug': config.pugRoleId,
+    'prospect': config.prospectRoleId,
+    'guildie': config.guildieRoleId
+  };
+  
+  for (const roleId of Object.values(roleMap)) {
+    if (roleId && member.roles.cache.has(roleId)) {
+      const roleToRemove = interaction.guild.roles.cache.get(roleId);
+      if (roleToRemove) {
+        await member.roles.remove(roleToRemove);
+      }
+    }
   }
   
-  if (verifiedRole) {
-    await member.roles.remove(verifiedRole);
+  if (unverifiedRole && !member.roles.cache.has(config.unverifiedRoleId)) {
+    await member.roles.add(unverifiedRole);
   }
   
   const embed = new EmbedBuilder()
@@ -249,8 +256,9 @@ async function handleStatusCommand(interaction) {
   const targetUser = interaction.options.getUser('user');
   const member = await interaction.guild.members.fetch(targetUser.id);
   
-  const isVerified = !member.roles.cache.has(config.unverifiedRoleId);
-  const hasVerifiedRole = member.roles.cache.has(config.verifiedRoleId);
+  const communityRoles = getCommunityRoles(member);
+  const isVerified = communityRoles !== 'None';
+  const hasUnverifiedRole = member.roles.cache.has(config.unverifiedRoleId);
   
   const embed = new EmbedBuilder()
     .setColor(isVerified ? 0x00FF00 : 0xFF0000)
@@ -259,9 +267,8 @@ async function handleStatusCommand(interaction) {
       { name: 'Username', value: targetUser.tag, inline: true },
       { name: 'Nickname', value: member.nickname || 'None', inline: true },
       { name: 'Verified', value: isVerified ? 'Yes ✅' : 'No ❌', inline: true },
-      { name: 'Has Verified Role', value: hasVerifiedRole ? 'Yes' : 'No', inline: true },
-      { name: 'Has Unverified Role', value: member.roles.cache.has(config.unverifiedRoleId) ? 'Yes' : 'No', inline: true },
-      { name: 'Community Roles', value: getCommunityRoles(member), inline: true },
+      { name: 'Community Roles', value: communityRoles, inline: true },
+      { name: 'Has Unverified Role', value: hasUnverifiedRole ? 'Yes' : 'No', inline: true },
       { name: 'Join Date', value: member.joinedAt ? member.joinedAt.toDateString() : 'Unknown', inline: true }
     )
     .setThumbnail(targetUser.displayAvatarURL())
@@ -275,9 +282,11 @@ async function handleStatsCommand(interaction) {
   const members = await guild.members.fetch();
   
   const totalMembers = members.filter(member => !member.user.bot).size;
-  const verifiedMembers = members.filter(member => 
-    !member.user.bot && !member.roles.cache.has(config.unverifiedRoleId)
-  ).size;
+  const verifiedMembers = members.filter(member => {
+    if (member.user.bot) return false;
+    const communityRoles = getCommunityRoles(member);
+    return communityRoles !== 'None';
+  }).size;
   const unverifiedMembers = members.filter(member => 
     !member.user.bot && member.roles.cache.has(config.unverifiedRoleId)
   ).size;
@@ -361,16 +370,26 @@ async function handleTestVerificationCommand(interaction) {
   
   const member = interaction.member;
   const unverifiedRole = interaction.guild.roles.cache.get(config.unverifiedRoleId);
-  const verifiedRole = interaction.guild.roles.cache.get(config.verifiedRoleId);
   
   try {
-    // Make the admin "unverified" temporarily for testing
-    if (unverifiedRole && !member.roles.cache.has(config.unverifiedRoleId)) {
-      await member.roles.add(unverifiedRole);
+    // Remove any community roles and add unverified role for testing
+    const roleMap = {
+      'pug': config.pugRoleId,
+      'prospect': config.prospectRoleId,
+      'guildie': config.guildieRoleId
+    };
+    
+    for (const roleId of Object.values(roleMap)) {
+      if (roleId && member.roles.cache.has(roleId)) {
+        const roleToRemove = interaction.guild.roles.cache.get(roleId);
+        if (roleToRemove) {
+          await member.roles.remove(roleToRemove);
+        }
+      }
     }
     
-    if (verifiedRole && member.roles.cache.has(config.verifiedRoleId)) {
-      await member.roles.remove(verifiedRole);
+    if (unverifiedRole && !member.roles.cache.has(config.unverifiedRoleId)) {
+      await member.roles.add(unverifiedRole);
     }
     
     const embed = new EmbedBuilder()
@@ -478,7 +497,6 @@ async function handleAutoAssignRolesCommand(interaction) {
   try {
     const guild = interaction.guild;
     const unverifiedRole = guild.roles.cache.get(config.unverifiedRoleId);
-    const verifiedRole = guild.roles.cache.get(config.verifiedRoleId);
     
     if (!unverifiedRole) {
       await interaction.editReply({
@@ -497,9 +515,10 @@ async function handleAutoAssignRolesCommand(interaction) {
       if (member.user.bot) continue;
       
       const hasUnverified = member.roles.cache.has(config.unverifiedRoleId);
-      const hasVerified = member.roles.cache.has(config.verifiedRoleId);
+      const communityRoles = getCommunityRoles(member);
+      const hasAnyVerificationRole = hasUnverified || communityRoles !== 'None';
       
-      if (!hasUnverified && !hasVerified) {
+      if (!hasAnyVerificationRole) {
         try {
           await member.roles.add(unverifiedRole);
           assignedCount++;

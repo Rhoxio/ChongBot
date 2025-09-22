@@ -73,6 +73,24 @@ const commands = [
       option.setName('author')
         .setDescription('Get a quote from a specific author (optional)')
         .setRequired(false)),
+  
+  // Warcraft Logs lookup by Discord user
+  new SlashCommandBuilder()
+    .setName('logs')
+    .setDescription('Get Warcraft Logs link for a character on Pagle')
+    .addUserOption(option =>
+      option.setName('user')
+        .setDescription('Discord user to look up (uses your own name if not provided)')
+        .setRequired(false)),
+  
+  // Warcraft Logs lookup by exact character name
+  new SlashCommandBuilder()
+    .setName('logsby')
+    .setDescription('Get Warcraft Logs link by exact character name (supports special characters)')
+    .addStringOption(option =>
+      option.setName('character')
+        .setDescription('Exact character name (e.g., Ðruið, Mäge, etc.)')
+        .setRequired(true)),
 ];
 
 // Check if user has admin permissions (either Discord admin or allow-listed)
@@ -147,6 +165,12 @@ async function handleCommands(interaction) {
         break;
       case 'chongalation':
         await handleChongalationCommand(interaction);
+        break;
+      case 'logs':
+        await handleLogsCommand(interaction);
+        break;
+      case 'logsby':
+        await handleLogsByCommand(interaction);
         break;
       default:
         await interaction.reply({ content: 'Unknown command!', ephemeral: true });
@@ -621,6 +645,92 @@ async function handleChongalationCommand(interaction) {
       ephemeral: true
     });
   }
+}
+
+async function handleLogsCommand(interaction) {
+  let targetUser = interaction.options.getUser('user');
+  let targetMember;
+  let nameSource = '';
+  
+  // Use the mentioned user or default to the command user
+  if (targetUser) {
+    targetMember = await interaction.guild.members.fetch(targetUser.id);
+    nameSource = ` (${targetUser.tag}'s Discord name)`;
+  } else {
+    targetUser = interaction.user;
+    targetMember = interaction.member;
+    nameSource = ' (your Discord name)';
+  }
+  
+  // Use their server nickname (display name)
+  let characterName = targetMember.displayName;
+  const originalName = characterName;
+  
+  // Clean the character name for URL safety
+  characterName = characterName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+  
+  if (!characterName) {
+    await interaction.reply({
+      content: `❌ Could not create a valid character name from "${originalName}". The Discord name contains no valid characters.`,
+      ephemeral: true
+    });
+    return;
+  }
+  
+  // Generate the Warcraft Logs URL for Pagle server, Mists of Pandaria
+  const logsUrl = `https://classic.warcraftlogs.com/character/us/pagle/${characterName}`;
+  
+  const embed = new EmbedBuilder()
+    .setColor(0x0099FF)
+    .setTitle(`📊 Warcraft Logs - ${characterName}`)
+    .setDescription(`[View ${characterName}'s logs on Pagle](${logsUrl})${nameSource}`)
+    .addFields(
+      { name: 'Server', value: 'Pagle (US)', inline: true },
+      { name: 'Expansion', value: 'Mists of Pandaria Classic', inline: true },
+      { name: 'Character', value: characterName, inline: true },
+      { name: 'Discord User', value: targetUser.tag, inline: true }
+    )
+    .setFooter({ text: 'Click the link above to view detailed combat logs' })
+    .setTimestamp();
+
+  await interaction.reply({ embeds: [embed] });
+  
+  console.log(`📊 ${interaction.user.tag} requested logs for ${targetUser.tag} (character: ${characterName})`);
+}
+
+async function handleLogsByCommand(interaction) {
+  const characterName = interaction.options.getString('character').trim();
+  
+  if (!characterName) {
+    await interaction.reply({
+      content: '❌ Please provide a character name.',
+      ephemeral: true
+    });
+    return;
+  }
+  
+  // URL encode the character name to handle special characters
+  const encodedCharacterName = encodeURIComponent(characterName.toLowerCase());
+  
+  // Generate the Warcraft Logs URL for Pagle server, Mists of Pandaria
+  const logsUrl = `https://classic.warcraftlogs.com/character/us/pagle/${encodedCharacterName}`;
+  
+  const embed = new EmbedBuilder()
+    .setColor(0xFF6B00) // Different color to distinguish from /logs
+    .setTitle(`📊 Warcraft Logs - ${characterName}`)
+    .setDescription(`[View ${characterName}'s logs on Pagle](${logsUrl})`)
+    .addFields(
+      { name: 'Server', value: 'Pagle (US)', inline: true },
+      { name: 'Expansion', value: 'Mists of Pandaria Classic', inline: true },
+      { name: 'Character', value: characterName, inline: true },
+      { name: 'Search Type', value: 'Exact Name', inline: true }
+    )
+    .setFooter({ text: 'Exact character name lookup - supports special characters' })
+    .setTimestamp();
+
+  await interaction.reply({ embeds: [embed] });
+  
+  console.log(`📊 ${interaction.user.tag} requested logs for exact character name: ${characterName}`);
 }
 
 module.exports = {

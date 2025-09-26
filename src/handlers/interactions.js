@@ -2,6 +2,9 @@ const { EmbedBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowB
 const config = require('../config/config');
 const { assignCommunityRole } = require('../core/roles');
 
+// Temporary storage for user selections during verification
+const userSelections = new Map();
+
 /**
  * Handles all Discord interaction events (buttons, modals, select menus)
  */
@@ -105,7 +108,22 @@ async function handleModalSubmit(interaction) {
         return;
       }
 
-      // Create role selection menu for regular users
+      // Create server selection menu
+      const serverSelect = new StringSelectMenuBuilder()
+        .setCustomId('server_selection')
+        .setPlaceholder('Choose your server...')
+        .setMinValues(1)
+        .setMaxValues(1)
+        .addOptions(
+          config.servers.map(server =>
+            new StringSelectMenuOptionBuilder()
+              .setLabel(server.label)
+              .setValue(server.value)
+              .setEmoji('🌍')
+          )
+        );
+
+      // Create role selection menu
       const roleSelect = new StringSelectMenuBuilder()
         .setCustomId('role_selection')
         .setPlaceholder('Choose your community role...')
@@ -129,22 +147,26 @@ async function handleModalSubmit(interaction) {
             .setEmoji('🛡️')
         ]);
 
-      const selectRow = new ActionRowBuilder().addComponents(roleSelect);
+      const serverRow = new ActionRowBuilder().addComponents(serverSelect);
+      const roleRow = new ActionRowBuilder().addComponents(roleSelect);
 
       const embed = new EmbedBuilder()
         .setColor(0x0099FF)
         .setTitle('✅ Nickname Set!')
         .setDescription(`Great! Your in-game name has been set to **${nickname}**.`)
         .addFields({
-          name: '🎭 Final Step: Choose Your Role',
-          value: 'Please select your community role from the dropdown below to complete your verification.',
+          name: '🎭 Final Steps: Choose Your Server & Role',
+          value: 'Please select both your server and community role from the dropdowns below. Your verification will complete automatically once both are selected.',
           inline: false
         })
         .setTimestamp();
 
+      // Initialize user selections
+      userSelections.set(interaction.user.id, { server: null, role: null });
+
       await interaction.reply({
         embeds: [embed],
-        components: [selectRow],
+        components: [serverRow, roleRow],
         ephemeral: true
       });
 
@@ -183,52 +205,95 @@ async function handleModalSubmit(interaction) {
  * @param {Interaction} interaction - The Discord interaction
  */
 async function handleSelectMenuInteraction(interaction) {
-  if (interaction.customId === 'role_selection') {
-    const roleChoice = interaction.values[0]; // Get the selected value
-    
-    try {
-      // Remove unverified role and assign community role based on selection
-      const assignedRole = await assignCommunityRole(interaction.member, roleChoice);
+  if (interaction.customId === 'server_selection') {
+    const serverChoice = interaction.values[0];
 
-      const embed = new EmbedBuilder()
-        .setColor(0x00FF00)
-        .setTitle('✅ Verification Complete!')
-        .setDescription(`Welcome to Chonglers, **${interaction.member.displayName}**! Your verification is complete.`)
-        .addFields({
-          name: '🎮 Your Details',
-          value: `**In-Game Name:** ${interaction.member.displayName}\n**Community Role:** ${assignedRole}`,
-          inline: false
-        }, {
-          name: '🎉 You\'re all set!',
-          value: 'You now have access to all channels and your community role. Welcome to the guild!',
-          inline: false
-        }, {
-          name: '💡 Tips',
-          value: 'Keep your Discord nickname updated if you change your in-game character name. Use `/chongalation` for some guild wisdom!',
-          inline: false
-        })
-        .setTimestamp();
+    // Update user selection
+    const userSelection = userSelections.get(interaction.user.id) || { server: null, role: null };
+    userSelection.server = serverChoice;
+    userSelections.set(interaction.user.id, userSelection);
 
-      await interaction.update({
-        embeds: [embed],
-        components: [], // Remove the select menu
-        ephemeral: true
-      });
+    // Acknowledge the selection
+    await interaction.deferUpdate();
 
-      // Send auto logs message to configured channel
-      await sendAutoLogsMessage(interaction.member, assignedRole);
-
-      console.log(`✅ ${interaction.user.tag} completed verification - Role: ${assignedRole}`);
-
-    } catch (error) {
-      console.error(`❌ Error completing verification for ${interaction.user.tag}:`, error);
-
-      await interaction.update({
-        content: '❌ There was an error completing your verification. Please try again or contact a moderator.',
-        components: [], // Remove the select menu
-        ephemeral: true
-      });
+    // Check if both server and role are selected
+    if (userSelection.role) {
+      await completeVerification(interaction, userSelection.server, userSelection.role);
     }
+
+    console.log(`🌍 ${interaction.user.tag} selected server: ${serverChoice}`);
+
+  } else if (interaction.customId === 'role_selection') {
+    const roleChoice = interaction.values[0];
+
+    // Update user selection
+    const userSelection = userSelections.get(interaction.user.id) || { server: null, role: null };
+    userSelection.role = roleChoice;
+    userSelections.set(interaction.user.id, userSelection);
+
+    // Acknowledge the selection
+    await interaction.deferUpdate();
+
+    // Check if both server and role are selected
+    if (userSelection.server) {
+      await completeVerification(interaction, userSelection.server, userSelection.role);
+    }
+
+    console.log(`🎭 ${interaction.user.tag} selected role: ${roleChoice}`);
+  }
+}
+
+async function completeVerification(interaction, server, role) {
+  try {
+    // Remove unverified role and assign community role based on selection
+    const assignedRole = await assignCommunityRole(interaction.member, role);
+
+    // Find server display name
+    const serverConfig = config.servers.find(s => s.value === server);
+    const serverDisplayName = serverConfig ? serverConfig.label : server;
+
+    const embed = new EmbedBuilder()
+      .setColor(0x00FF00)
+      .setTitle('✅ Verification Complete!')
+      .setDescription(`Welcome to Chonglers, **${interaction.member.displayName}**! Your verification is complete.`)
+      .addFields({
+        name: '🎮 Your Details',
+        value: `**In-Game Name:** ${interaction.member.displayName}\n**Server:** ${serverDisplayName}\n**Community Role:** ${assignedRole}`,
+        inline: false
+      }, {
+        name: '🎉 You\'re all set!',
+        value: 'You now have access to all channels and your community role. Welcome to the guild!',
+        inline: false
+      }, {
+        name: '💡 Tips',
+        value: 'Keep your Discord nickname updated if you change your in-game character name. Use `/chongalation` for some guild wisdom!',
+        inline: false
+      })
+      .setTimestamp();
+
+    await interaction.editReply({
+      embeds: [embed],
+      components: [], // Remove the select menus
+    });
+
+    // Send auto logs message to configured channel with server info
+    await sendAutoLogsMessage(interaction.member, assignedRole, server);
+
+    // Clean up user selections
+    userSelections.delete(interaction.user.id);
+
+    console.log(`✅ ${interaction.user.tag} completed verification - Server: ${server}, Role: ${assignedRole}`);
+
+  } catch (error) {
+    console.error(`❌ Error completing verification for ${interaction.user.tag}:`, error);
+
+    await interaction.editReply({
+      content: '❌ There was an error completing your verification. Please try again or contact a moderator.',
+      components: [], // Remove the select menus
+    });
+
+    // Clean up user selections
+    userSelections.delete(interaction.user.id);
   }
 }
 
@@ -236,8 +301,9 @@ async function handleSelectMenuInteraction(interaction) {
  * Sends an auto logs message to the configured channel when someone completes verification
  * @param {GuildMember} member - The member who completed verification
  * @param {string} assignedRole - The role that was assigned
+ * @param {string} server - The server value selected during verification
  */
-async function sendAutoLogsMessage(member, assignedRole) {
+async function sendAutoLogsMessage(member, assignedRole, server = 'pagle') {
   if (!config.autoLogsChannelId) {
     console.log('ℹ️ Auto logs channel not configured, skipping auto logs message');
     return;
@@ -251,28 +317,26 @@ async function sendAutoLogsMessage(member, assignedRole) {
       return;
     }
 
-    // Clean the character name for URL safety (same logic as /logs command)
-    let characterName = member.displayName;
-    const originalName = characterName;
-    characterName = characterName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+    // URL encode the character name to handle special characters
+    const characterName = member.displayName;
+    const encodedCharacterName = encodeURIComponent(characterName.toLowerCase());
 
-    if (!characterName) {
-      console.error(`❌ Could not create valid character name from "${originalName}" for auto logs`);
-      return;
-    }
+    // Generate the Warcraft Logs URL using the selected server
+    const logsUrl = `https://classic.warcraftlogs.com/character/us/${server}/${encodedCharacterName}`;
 
-    // Generate the Warcraft Logs URL
-    const logsUrl = `https://classic.warcraftlogs.com/character/us/pagle/${characterName}`;
+    // Find server display name
+    const serverConfig = config.servers.find(s => s.value === server);
+    const serverDisplayName = serverConfig ? serverConfig.label : server;
 
     const embed = new EmbedBuilder()
       .setColor(0x00FF00)
       .setTitle(`🎉 New Member Verified - ${member.displayName}`)
-      .setDescription(`[📊 View ${characterName}'s logs on Pagle](${logsUrl})`)
+      .setDescription(`[📊 View ${characterName}'s logs on ${serverDisplayName}](${logsUrl})`)
       .addFields(
         { name: 'Discord User', value: member.user.tag, inline: true },
         { name: 'In-Game Name', value: member.displayName, inline: true },
         { name: 'Community Role', value: assignedRole, inline: true },
-        { name: 'Server', value: 'Pagle (US)', inline: true },
+        { name: 'Server', value: `${serverDisplayName} (US)`, inline: true },
         { name: 'Expansion', value: 'Mists of Pandaria Classic', inline: true }
       )
       .setThumbnail(member.user.displayAvatarURL())

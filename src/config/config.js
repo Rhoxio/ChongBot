@@ -23,6 +23,15 @@ module.exports = {
   // Bot Settings
   requiredNicknameChange: process.env.REQUIRED_NICKNAME_CHANGE === 'true',
   adminUserIds: process.env.ADMIN_USER_IDS ? process.env.ADMIN_USER_IDS.split(',') : [],
+
+  // Server Configuration for Warcraftlogs
+  servers: [
+    { label: 'Pagle', value: 'pagle' },
+    { label: 'Lei Shen', value: 'lei-shen' },
+    { label: 'Ra-Den', value: 'raden' },
+    { label: 'Nazgrim', value: 'nazgrim' },
+    { label: 'Galakras', value: 'galakras' }
+  ],
   
   // Messages
   messages: {

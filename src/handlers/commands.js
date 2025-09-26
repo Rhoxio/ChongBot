@@ -666,19 +666,11 @@ async function handleLogsCommand(interaction) {
   let characterName = targetMember.displayName;
   const originalName = characterName;
   
-  // Clean the character name for URL safety
-  characterName = characterName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-  
-  if (!characterName) {
-    await interaction.reply({
-      content: `❌ Could not create a valid character name from "${originalName}". The Discord name contains no valid characters.`,
-      ephemeral: true
-    });
-    return;
-  }
-  
+  // URL encode the character name to handle special characters
+  const encodedCharacterName = encodeURIComponent(characterName.toLowerCase());
+
   // Generate the Warcraft Logs URL for Pagle server, Mists of Pandaria
-  const logsUrl = `https://classic.warcraftlogs.com/character/us/pagle/${characterName}`;
+  const logsUrl = `https://classic.warcraftlogs.com/character/us/pagle/${encodedCharacterName}`;
   
   const embed = new EmbedBuilder()
     .setColor(0x0099FF)

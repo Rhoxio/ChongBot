@@ -114,6 +114,16 @@ async function fetchUpcomingRaids(serverId = config.guildId, days = 3) {
       events.slice(0, 3).forEach((event, index) => {
         console.log(`  ${index + 1}. "${event.title}" - ${event.startTime} (${new Date(event.startTime * 1000).toISOString()})`);
       });
+
+      // Look for the specific Sunday MSV event the user mentioned
+      const targetEventId = '1419519142431821904';
+      const foundTargetEvent = events.find(event => event.id === targetEventId);
+      if (foundTargetEvent) {
+        console.log(`🎯 FOUND target event: "${foundTargetEvent.title}" - ${foundTargetEvent.startTime} (${new Date(foundTargetEvent.startTime * 1000).toISOString()})`);
+      } else {
+        console.log(`❌ Target event ${targetEventId} NOT FOUND in returned ${events.length} events`);
+        console.log(`📋 All event IDs: ${events.slice(0, 5).map(e => e.id).join(', ')}...`);
+      }
     }
 
     return events;

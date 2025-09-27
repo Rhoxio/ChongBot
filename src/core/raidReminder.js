@@ -3,29 +3,26 @@
  * Handles creation and sending of raid signup reminder messages
  */
 
+const moment = require('moment-timezone');
+
 /**
  * Format a date for display in raid reminders
  * @param {string|Date|number} dateTime - The date/time to format (Unix timestamp or Date)
  * @returns {string} Formatted date string
  */
 function formatDate(dateTime) {
-  let date;
+  let momentDate;
 
   // Handle Unix timestamps (seconds) from Raid Helper API
-  if (typeof dateTime === 'number' && dateTime < 10000000000) {
-    // If timestamp is less than 10 billion, it's likely in seconds, convert to milliseconds
-    date = new Date(dateTime * 1000);
+  if (typeof dateTime === 'number') {
+    // Always treat numbers as Unix timestamps in seconds
+    momentDate = moment.unix(dateTime).tz('America/Los_Angeles');
   } else {
-    date = new Date(dateTime);
+    // Handle Date objects or date strings
+    momentDate = moment(dateTime).tz('America/Los_Angeles');
   }
 
-  return date.toLocaleDateString('en-US', {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-    timeZone: 'America/Los_Angeles'
-  });
+  return momentDate.format('dddd, MMMM D, YYYY');
 }
 
 /**
@@ -34,22 +31,18 @@ function formatDate(dateTime) {
  * @returns {string} Formatted time string
  */
 function formatTime(dateTime) {
-  let date;
+  let momentDate;
 
   // Handle Unix timestamps (seconds) from Raid Helper API
-  if (typeof dateTime === 'number' && dateTime < 10000000000) {
-    // If timestamp is less than 10 billion, it's likely in seconds, convert to milliseconds
-    date = new Date(dateTime * 1000);
+  if (typeof dateTime === 'number') {
+    // Always treat numbers as Unix timestamps in seconds
+    momentDate = moment.unix(dateTime).tz('America/Los_Angeles');
   } else {
-    date = new Date(dateTime);
+    // Handle Date objects or date strings
+    momentDate = moment(dateTime).tz('America/Los_Angeles');
   }
 
-  return date.toLocaleTimeString('en-US', {
-    hour: 'numeric',
-    minute: '2-digit',
-    timeZone: 'America/Los_Angeles',
-    timeZoneName: 'short'
-  });
+  return momentDate.format('h:mm A z');
 }
 
 /**

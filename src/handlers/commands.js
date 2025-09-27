@@ -3,8 +3,8 @@ const config = require('../config/config');
 const { createVerificationEmbed, createVerificationButton } = require('../core/verification');
 const { getRandomChongalation, getChongalationByAuthor, getAllAuthors } = require('./chongalations');
 const { assignCommunityRole } = require('../core/roles');
-const { sendRaidReminder } = require('../core/raidReminder');
-const { performDailyRaidCheck, getRaidEligibleMembers, findMissingSignups } = require('./raidSignupCheck');
+const { sendRaidReminder, formatDate, formatTime } = require('../core/raidReminder');
+const { performDailyRaidCheck, getRaidEligibleMembers, findMissingSignups, processRaidSignupCheck } = require('./raidSignupCheck');
 const { fetchUpcomingRaids, filterRaidEvents, getRaidSignups, testApiConnection, testServerApiConnection } = require('../core/raidHelperApi');
 
 const commands = [
@@ -758,28 +758,45 @@ async function handleLogsByCommand(interaction) {
 
 async function handleDebugRaidReminderCommand(interaction) {
   try {
-    // Create mock raid data for testing
-    const mockRaid = {
-      startTime: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // Tomorrow
-      channelId: interaction.channelId, // Use current channel for test
-      title: 'Test Raid Event (Debug)'
+    console.log(`🧪 ${interaction.user.tag} testing raid reminder DM`);
+
+    // Get REAL data using same API calls as daily check
+    const upcomingEvents = await fetchUpcomingRaids();
+
+    if (upcomingEvents.length === 0) {
+      await interaction.reply({
+        content: '❌ No upcoming events found to test with. Try again when there are scheduled events.',
+        ephemeral: true
+      });
+      return;
+    }
+
+    // Create a real send function for testing
+    const testSendReminder = async (member, raids, dryRun = false) => {
+      // Use the actual sendRaidReminder function with the first event
+      return await sendRaidReminder(member, raids[0]);
     };
 
-    // Send actual DM using the same logic as the cron job
-    const result = await sendRaidReminder(interaction.member, mockRaid);
+    // Use dependency injection with just the moderator as the test user
+    const result = await processRaidSignupCheck({
+      events: upcomingEvents,
+      eligibleMembers: [interaction.member], // Only test with the moderator
+      sendReminder: testSendReminder,
+      dryRun: false // Actually send the DM
+    });
 
-    if (result.success) {
+    if (result.totalReminders > 0) {
       await interaction.reply({
-        content: '✅ Test reminder sent to your DMs! Check your messages to see how the reminder looks.',
+        content: `✅ Test reminder sent to your DMs! Used real event: "${upcomingEvents[0].title}"`,
         ephemeral: true
       });
-      console.log(`🧪 ${interaction.user.tag} tested raid reminder DM`);
+      console.log(`🧪 ${interaction.user.tag} tested raid reminder DM with event: ${upcomingEvents[0].title}`);
     } else {
       await interaction.reply({
-        content: `❌ Failed to send test DM: ${result.error}`,
+        content: `✅ Test complete! You appear to be signed up for all events, so no reminder was sent. Event tested: "${upcomingEvents[0].title}"`,
         ephemeral: true
       });
-      console.log(`❌ ${interaction.user.tag} failed to receive test DM: ${result.error}`);
+      console.log(`🧪 ${interaction.user.tag} tested but was already signed up for: ${upcomingEvents[0].title}`);
     }
 
   } catch (error) {
@@ -797,33 +814,51 @@ async function handleDebugRaidCheckCommand(interaction) {
   try {
     console.log(`🧪 ${interaction.user.tag} initiated debug raid check`);
 
-    // === REAL API CALLS (same as cron job) ===
+    // Get real data using same API calls as daily check
     const upcomingEvents = await fetchUpcomingRaids();
-    const raidEvents = filterRaidEvents(upcomingEvents);
     const raidEligibleMembers = await getRaidEligibleMembers(interaction.guild);
 
+    // Create a mock send function for dry run
+    const mockSendReminder = async (member, raids, dryRun = true) => {
+      return {
+        success: true,
+        member: member.user.tag,
+        userId: member.id,
+        raidCount: raids.length,
+        dryRun: true
+      };
+    };
+
+    // Use the same core business logic with dependency injection
+    const result = await processRaidSignupCheck({
+      events: upcomingEvents,
+      eligibleMembers: raidEligibleMembers,
+      sendReminder: mockSendReminder,
+      dryRun: true
+    });
+
+    // Build the debug report
     let report = `**🔍 Raid Check Debug Report**\n\n`;
     report += `**Upcoming Events Found:** ${upcomingEvents.length}\n`;
-    report += `**Raid Events Found:** ${raidEvents.length}\n`;
+    report += `**Events to Process:** ${result.processedEvents} (ALL events, no filtering)\n`;
     report += `**Raid-Eligible Members:** ${raidEligibleMembers.length}\n\n`;
 
-    if (raidEvents.length === 0) {
-      report += `📅 No raid events found in the next 3 days.\n`;
-      report += `💡 Try creating a test event in Raid Helper with keywords like "raid", "mc", "bwl", etc.`;
+    if (upcomingEvents.length === 0) {
+      report += `📅 No events found in the next 3 days.\n`;
+      report += `💡 Try creating events in Raid Helper for testing.`;
     } else {
-      for (const raid of raidEvents) {
-        const raidSignups = raid.signUps || [];
-        const missingSignups = findMissingSignups(raidEligibleMembers, raidSignups);
+      // Group results by event for display
+      const eventResults = new Map();
 
-        const raidDate = new Date(raid.startTime).toLocaleDateString('en-US', {
-          timeZone: 'America/Los_Angeles',
-          weekday: 'short',
-          month: 'short',
-          day: 'numeric'
-        });
+      // Process each event to show individual breakdown
+      for (const event of upcomingEvents) {
+        const eventSignups = event.signUps || [];
+        const missingSignups = findMissingSignups(raidEligibleMembers, eventSignups);
 
-        report += `**${raid.title || 'Untitled Raid'}** (${raidDate})\n`;
-        report += `├ 📝 Signed up: ${raidSignups.length}\n`;
+        const raidDate = formatDate(event.startTime);
+
+        report += `**${event.title || 'Untitled Event'}** (${raidDate})\n`;
+        report += `├ 📝 Signed up: ${eventSignups.length}\n`;
         report += `├ ⚠️ Missing: ${missingSignups.length}\n`;
 
         if (missingSignups.length > 0 && missingSignups.length <= 10) {
@@ -836,9 +871,9 @@ async function handleDebugRaidCheckCommand(interaction) {
         }
       }
 
-      // Send ONE real test DM to the moderator if there are raids
-      if (raidEvents.length > 0) {
-        const testResult = await sendRaidReminder(interaction.member, raidEvents[0]);
+      // Send ONE real test DM to the moderator if there are events
+      if (upcomingEvents.length > 0) {
+        const testResult = await sendRaidReminder(interaction.member, upcomingEvents[0]);
         report += `**🧪 Test DM sent to you:** ${testResult.success ? '✅ Success' : '❌ Failed - ' + testResult.error}`;
       }
     }

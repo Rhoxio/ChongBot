@@ -120,6 +120,16 @@ async function fetchUpcomingRaids(serverId = config.guildId, days = 3) {
       const foundTargetEvent = events.find(event => event.id === targetEventId);
       if (foundTargetEvent) {
         console.log(`🎯 FOUND target event: "${foundTargetEvent.title}" - ${foundTargetEvent.startTime} (${new Date(foundTargetEvent.startTime * 1000).toISOString()})`);
+        console.log(`📋 Target event details:`, {
+          id: foundTargetEvent.id,
+          title: foundTargetEvent.title,
+          startTime: foundTargetEvent.startTime,
+          hasSignUps: !!foundTargetEvent.signUps,
+          signUpCount: foundTargetEvent.signUps ? foundTargetEvent.signUps.length : 0,
+          signUpsStructure: foundTargetEvent.signUps ? 'Array with ' + foundTargetEvent.signUps.length + ' items' : 'null/undefined',
+          channelId: foundTargetEvent.channelId || 'MISSING',
+          allKeys: Object.keys(foundTargetEvent)
+        });
       } else {
         console.log(`❌ Target event ${targetEventId} NOT FOUND in returned ${events.length} events`);
         console.log(`📋 All event IDs: ${events.slice(0, 5).map(e => e.id).join(', ')}...`);
@@ -190,7 +200,10 @@ function isRaidEvent(event) {
     'raid', 'bwl', 'mc', 'molten core', 'blackwing lair', 'aq40', 'naxx', 'naxxramas',
     'onyxia', 'zg', 'zul\'gurub', 'aq20', 'temple', 'karazhan', 'kara', 'gruul',
     'magtheridon', 'ssc', 'tk', 'hyjal', 'bt', 'sunwell', 'icc', 'icecrown',
-    'ulduar', 'toc', 'naxx25', 'naxx10', 'weekly', 'clear'
+    'ulduar', 'toc', 'naxx25', 'naxx10', 'weekly', 'clear',
+    // Mists of Pandaria raids
+    'msv', 'mogu\'shan', 'vaults', 'hof', 'heart of fear', 'toes', 'terrace', 'endless spring',
+    'tot', 'throne of thunder', 'soo', 'siege of orgrimmar'
   ];
 
   return raidKeywords.some(keyword =>

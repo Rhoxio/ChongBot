@@ -125,6 +125,128 @@ async function processRaidReminders(guild, raid, raidEligibleMembers) {
 }
 
 /**
+ * Core business logic for raid signup checking with dependency injection
+ * @param {Object} dependencies - Injected dependencies
+ * @param {Array} dependencies.events - Array of raid events to process
+ * @param {Array} dependencies.eligibleMembers - Array of Discord members eligible for raids
+ * @param {Function} dependencies.sendReminder - Function to send reminders (real or mock)
+ * @param {boolean} dependencies.dryRun - If true, don't actually send messages
+ * @returns {Object} Processing results
+ */
+async function processRaidSignupCheck(dependencies) {
+  const { events, eligibleMembers, sendReminder, dryRun = false } = dependencies;
+
+  console.log(`📅 Processing ${events.length} events for ${eligibleMembers.length} eligible members${dryRun ? ' (DRY RUN)' : ''}`);
+
+  if (events.length === 0) {
+    return {
+      success: true,
+      totalEvents: 0,
+      processedEvents: 0,
+      totalReminders: 0,
+      totalErrors: 0,
+      results: []
+    };
+  }
+
+  if (eligibleMembers.length === 0) {
+    console.log('👥 No eligible members found');
+    return {
+      success: true,
+      totalEvents: events.length,
+      processedEvents: events.length,
+      totalReminders: 0,
+      totalErrors: 0,
+      results: [],
+      error: 'No eligible members found'
+    };
+  }
+
+  // Build a map of members to their missing raids
+  const memberMissingRaids = new Map();
+
+  // Process each event to collect missing signups per member
+  for (const event of events) {
+    console.log(`📅 Analyzing event: ${event.title || 'Unknown'} (${event.id})`);
+    const eventSignups = event.signUps || [];
+    const missingMembers = findMissingSignups(eligibleMembers, eventSignups);
+
+    // Add this event to each missing member's list
+    for (const member of missingMembers) {
+      if (!memberMissingRaids.has(member.id)) {
+        memberMissingRaids.set(member.id, {
+          member: member,
+          raids: []
+        });
+      }
+      memberMissingRaids.get(member.id).raids.push(event);
+    }
+  }
+
+  console.log(`📊 Found ${memberMissingRaids.size} members who need reminders for ${events.length} total events`);
+
+  if (memberMissingRaids.size === 0) {
+    console.log('✅ All eligible members are signed up for all events!');
+    return {
+      success: true,
+      totalEvents: events.length,
+      processedEvents: events.length,
+      totalReminders: 0,
+      totalErrors: 0,
+      results: []
+    };
+  }
+
+  // Send consolidated reminders to each member
+  const results = [];
+  let totalReminders = 0;
+  let totalErrors = 0;
+
+  for (const [memberId, { member, raids }] of memberMissingRaids) {
+    console.log(`📤 ${dryRun ? 'Would send' : 'Sending'} consolidated reminder to ${member.user.tag} for ${raids.length} event(s)...`);
+
+    try {
+      const result = await sendReminder(member, raids, dryRun);
+      results.push(result);
+
+      if (result.success) {
+        totalReminders++;
+        console.log(`✅ ${dryRun ? 'Would send' : 'Sent'} consolidated reminder to ${member.user.tag} for ${raids.length} events`);
+      } else {
+        totalErrors++;
+        console.error(`❌ Failed to send reminder to ${member.user.tag}: ${result.error}`);
+      }
+
+      // Small delay to avoid rate limiting (even in dry run for realistic timing)
+      if (!dryRun) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    } catch (error) {
+      totalErrors++;
+      console.error(`❌ Error sending reminder to ${member.user.tag}:`, error);
+      results.push({
+        success: false,
+        member: member.user.tag,
+        userId: member.id,
+        raidCount: raids.length,
+        error: error.message
+      });
+    }
+  }
+
+  console.log(`🎯 Processing complete: ${events.length} events processed, ${totalReminders} ${dryRun ? 'simulated ' : ''}reminders sent, ${totalErrors} errors`);
+
+  return {
+    success: true,
+    totalEvents: events.length,
+    processedEvents: events.length,
+    totalReminders,
+    totalErrors,
+    results
+  };
+}
+
+/**
  * Main function to check all upcoming raids and send consolidated reminders
  * @param {Object} client - Discord client object
  * @returns {Object} Summary of all reminder activities
@@ -139,122 +261,20 @@ async function performDailyRaidCheck(client) {
     // Get all upcoming events
     const upcomingEvents = await fetchUpcomingRaids();
 
-    if (upcomingEvents.length === 0) {
-      console.log('📅 No upcoming events found in the next 3 days');
-      return {
-        success: true,
-        totalEvents: 0,
-        raidEvents: 0,
-        results: []
-      };
-    }
-
-    // Filter for raid events only
-    const raidEvents = filterRaidEvents(upcomingEvents);
-
-    if (raidEvents.length === 0) {
-      console.log('🏆 No raid events found in upcoming events');
-      return {
-        success: true,
-        totalEvents: upcomingEvents.length,
-        raidEvents: 0,
-        results: []
-      };
-    }
-
-    // Get raid-eligible members once
+    // Get raid-eligible members
     const raidEligibleMembers = await getRaidEligibleMembers(guild);
 
-    if (raidEligibleMembers.length === 0) {
-      console.log('👥 No raid-eligible members found');
-      return {
-        success: true,
-        totalEvents: upcomingEvents.length,
-        raidEvents: raidEvents.length,
-        results: [],
-        error: 'No raid-eligible members found'
-      };
-    }
-
-    // Build a map of members to their missing raids
-    const memberMissingRaids = new Map();
-
-    // Process each raid to collect missing signups per member
-    for (const raid of raidEvents) {
-      console.log(`🏆 Analyzing raid: ${raid.title || 'Unknown'} (${raid.id})`);
-      const raidSignups = raid.signUps || [];
-      const missingMembers = findMissingSignups(raidEligibleMembers, raidSignups);
-
-      // Add this raid to each missing member's list
-      for (const member of missingMembers) {
-        if (!memberMissingRaids.has(member.id)) {
-          memberMissingRaids.set(member.id, {
-            member: member,
-            raids: []
-          });
-        }
-        memberMissingRaids.get(member.id).raids.push(raid);
-      }
-    }
-
-    console.log(`📊 Found ${memberMissingRaids.size} members who need reminders for ${raidEvents.length} total raids`);
-
-    if (memberMissingRaids.size === 0) {
-      console.log('✅ All raid-eligible members are signed up for all raids!');
-      return {
-        success: true,
-        totalEvents: upcomingEvents.length,
-        raidEvents: raidEvents.length,
-        totalReminders: 0,
-        totalErrors: 0,
-        results: []
-      };
-    }
-
-    // Send consolidated reminders to each member
-    const results = [];
-    let totalReminders = 0;
-    let totalErrors = 0;
-
-    for (const [memberId, { member, raids }] of memberMissingRaids) {
-      console.log(`📤 Sending consolidated reminder to ${member.user.tag} for ${raids.length} raid(s)...`);
-
-      try {
-        const result = await sendConsolidatedRaidReminder(member, raids);
-        results.push(result);
-
-        if (result.success) {
-          totalReminders++;
-          console.log(`✅ Sent consolidated reminder to ${member.user.tag} for ${raids.length} raids`);
-        } else {
-          totalErrors++;
-          console.error(`❌ Failed to send reminder to ${member.user.tag}: ${result.error}`);
-        }
-
-        // Small delay to avoid rate limiting
-        await new Promise(resolve => setTimeout(resolve, 100));
-      } catch (error) {
-        totalErrors++;
-        console.error(`❌ Error sending reminder to ${member.user.tag}:`, error);
-        results.push({
-          success: false,
-          member: member.user.tag,
-          userId: member.id,
-          raidCount: raids.length,
-          error: error.message
-        });
-      }
-    }
-
-    console.log(`🎯 Daily check complete: ${raidEvents.length} raids processed, ${totalReminders} consolidated reminders sent, ${totalErrors} errors`);
+    // Use dependency injection for the core logic
+    const result = await processRaidSignupCheck({
+      events: upcomingEvents,
+      eligibleMembers: raidEligibleMembers,
+      sendReminder: sendConsolidatedRaidReminder,
+      dryRun: false
+    });
 
     return {
-      success: true,
-      totalEvents: upcomingEvents.length,
-      raidEvents: raidEvents.length,
-      totalReminders,
-      totalErrors,
-      results
+      ...result,
+      raidEvents: result.processedEvents // Maintain backward compatibility
     };
 
   } catch (error) {
@@ -270,5 +290,6 @@ module.exports = {
   getRaidEligibleMembers,
   findMissingSignups,
   processRaidReminders,
-  performDailyRaidCheck
+  performDailyRaidCheck,
+  processRaidSignupCheck
 };

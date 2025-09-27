@@ -98,9 +98,19 @@ async function fetchUpcomingRaids(serverId = config.guildId, days = 3) {
     let events = data.postedEvents || [];
     console.log(`📅 Found ${events.length} upcoming events in next ${days} days`);
 
+    // Filter out events outside our time range (API seems to ignore time filters)
+    const currentTime = Math.floor(Date.now() / 1000);
+    const futureLimit = currentTime + (days * 24 * 60 * 60);
+
+    const originalCount = events.length;
+    events = events.filter(event => {
+      return event.startTime >= currentTime && event.startTime <= futureLimit;
+    });
+    console.log(`📅 Post-filtered events: ${originalCount} -> ${events.length} (removed ${originalCount - events.length} out-of-range events)`);
+
     // Sort events by start time (earliest first)
     events = events.sort((a, b) => a.startTime - b.startTime);
-    console.log(`📅 Sorted events by start time (earliest first)`);
+    console.log(`📅 Sorted ${events.length} events by start time (earliest first)`);
 
     // Log sample event structure for debugging
     if (events.length > 0) {

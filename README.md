@@ -22,6 +22,13 @@ A comprehensive Discord verification bot with a **two-step verification system**
 - **Server statistics** and verification tracking
 - **Force setup** and testing tools
 
+### ⏰ **Raid Signup Reminder System**
+- **Daily automated checks** at 4:30 PM PST for upcoming raids
+- **Raid Helper API integration** to fetch events and signups
+- **Smart role filtering** - only reminds Raider/Trial role members
+- **Consolidated messaging** - single DM for multiple missing signups
+- **Debug commands** for testing and troubleshooting
+
 ### 🎉 **User Experience**
 - **Single verification channel** with persistent message
 - **Clear instructions** with role previews
@@ -117,6 +124,12 @@ PROSPECT_ROLE_ID=your_prospect_role_id_here
 GUILDIE_ROLE_ID=your_guildie_role_id_here
 REQUIRED_NICKNAME_CHANGE=true
 ADMIN_USER_IDS=your_user_id_here,another_admin_id_here
+
+# Raid Management (Optional - for raid signup reminders)
+RAID_HELPER_API_KEY=your_raid_helper_api_key_here
+RAIDER_ROLE_ID=your_raider_role_id_here
+TRIAL_ROLE_ID=your_trial_role_id_here
+OFFICER_ROLE_ID=your_officer_role_id_here
 ```
 
 #### **Railway Deployment:**
@@ -142,6 +155,8 @@ npm run dev
 
 ### **Public Commands**
 - `/chongalation [author]` - Get a random community quote
+- `/logs [@user]` - Get Warcraft Logs link for a character on Pagle
+- `/logsby <character>` - Get Warcraft Logs link by exact character name
 
 ### **Admin Commands** (Admins + Allow-listed Users Only)
 - `/verify @user` - Manually verify a user
@@ -152,6 +167,11 @@ npm run dev
 - `/test-verification` - Test the verification flow (admin override)
 - `/force-setup` - Force setup verification system
 - `/auto-assign-roles` - Bulk assign unverified role to members
+
+### **Raid Management Commands** (Moderators Only)
+- `/debug-raid-reminder` - Send yourself a test raid reminder DM
+- `/debug-raid-check` - Test full raid check logic without sending DMs
+- `/test-raid-api` - Test Raid Helper API connection and configuration
 
 ## 🔐 Permission Requirements
 
@@ -207,6 +227,15 @@ The bot checks for admin permissions in this order:
 - **User-friendly error messages** - clear feedback on what went wrong
 - **Automatic recovery** - bot continues working even after errors
 
+### **Raid Signup Reminder System**
+- **Automated daily checks** - runs at 4:30 PM PST every day
+- **Raid Helper integration** - fetches upcoming raids for next 3 days
+- **Smart filtering** - only processes actual raid events (not social events)
+- **Role-based targeting** - only sends reminders to Raider/Trial role members
+- **Signup verification** - compares Discord roles vs Raid Helper signups
+- **Consolidated messaging** - sends one DM per member for multiple missing raids
+- **Rate limiting protection** - delays between messages to avoid Discord limits
+
 ## 🛠️ Customization
 
 ### **Modify Verification Message**
@@ -252,6 +281,13 @@ Add new commands in `commands.js`:
 - ✅ Bot role must be above Verified/Unverified/Community roles
 - ✅ Enable "Manage Roles" and "Manage Nicknames" permissions
 - ✅ Grant channel access permissions in #verify
+
+### **Raid Reminder Issues**
+- ✅ Check `RAID_HELPER_API_KEY` is set correctly in environment variables
+- ✅ Verify `RAIDER_ROLE_ID` and `TRIAL_ROLE_ID` are correct
+- ✅ Test API connection with `/test-raid-api` command
+- ✅ Use `/debug-raid-check` to test without sending actual DMs
+- ✅ Check console logs for detailed error messages during daily runs
 
 ## 📊 Monitoring & Maintenance
 

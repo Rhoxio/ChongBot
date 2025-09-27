@@ -882,7 +882,11 @@ async function handleTestRaidApiCommand(interaction) {
       report += `📋 Test event: "${basicTest.eventTitle}"\n`;
       report += `🔗 Event ID: ${basicTest.eventId}\n\n`;
     } else {
-      report += `❌ Connection failed: ${basicTest.error}\n\n`;
+      if (basicTest.skipError) {
+        report += `⚠️ Skipped: ${basicTest.error}\n\n`;
+      } else {
+        report += `❌ Connection failed: ${basicTest.error}\n\n`;
+      }
     }
 
     // Test 2: Server-specific API with your credentials

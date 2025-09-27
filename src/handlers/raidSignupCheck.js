@@ -5,7 +5,7 @@
 
 const config = require('../config/config');
 const { fetchUpcomingRaids, filterRaidEvents, extractSignedUpUserIds } = require('../core/raidHelperApi');
-const { sendRaidReminders } = require('../core/raidReminder');
+const { sendRaidReminders, sendConsolidatedRaidReminder } = require('../core/raidReminder');
 
 /**
  * Get Discord members who are eligible for raids (Raider + Trial roles)
@@ -125,7 +125,7 @@ async function processRaidReminders(guild, raid, raidEligibleMembers) {
 }
 
 /**
- * Main function to check all upcoming raids and send reminders
+ * Main function to check all upcoming raids and send consolidated reminders
  * @param {Object} client - Discord client object
  * @returns {Object} Summary of all reminder activities
  */
@@ -176,21 +176,77 @@ async function performDailyRaidCheck(client) {
       };
     }
 
-    // Process each raid
-    const results = [];
-    for (const raid of raidEvents) {
-      const result = await processRaidReminders(guild, raid, raidEligibleMembers);
-      results.push(result);
+    // Build a map of members to their missing raids
+    const memberMissingRaids = new Map();
 
-      // Small delay between raids to avoid rate limiting
-      await new Promise(resolve => setTimeout(resolve, 1000));
+    // Process each raid to collect missing signups per member
+    for (const raid of raidEvents) {
+      console.log(`🏆 Analyzing raid: ${raid.title || 'Unknown'} (${raid.id})`);
+      const raidSignups = raid.signUps || [];
+      const missingMembers = findMissingSignups(raidEligibleMembers, raidSignups);
+
+      // Add this raid to each missing member's list
+      for (const member of missingMembers) {
+        if (!memberMissingRaids.has(member.id)) {
+          memberMissingRaids.set(member.id, {
+            member: member,
+            raids: []
+          });
+        }
+        memberMissingRaids.get(member.id).raids.push(raid);
+      }
     }
 
-    // Summary statistics
-    const totalReminders = results.reduce((sum, r) => sum + (r.remindersSent || 0), 0);
-    const totalErrors = results.reduce((sum, r) => sum + (r.errors || 0), 0);
+    console.log(`📊 Found ${memberMissingRaids.size} members who need reminders for ${raidEvents.length} total raids`);
 
-    console.log(`🎯 Daily check complete: ${raidEvents.length} raids processed, ${totalReminders} reminders sent, ${totalErrors} errors`);
+    if (memberMissingRaids.size === 0) {
+      console.log('✅ All raid-eligible members are signed up for all raids!');
+      return {
+        success: true,
+        totalEvents: upcomingEvents.length,
+        raidEvents: raidEvents.length,
+        totalReminders: 0,
+        totalErrors: 0,
+        results: []
+      };
+    }
+
+    // Send consolidated reminders to each member
+    const results = [];
+    let totalReminders = 0;
+    let totalErrors = 0;
+
+    for (const [memberId, { member, raids }] of memberMissingRaids) {
+      console.log(`📤 Sending consolidated reminder to ${member.user.tag} for ${raids.length} raid(s)...`);
+
+      try {
+        const result = await sendConsolidatedRaidReminder(member, raids);
+        results.push(result);
+
+        if (result.success) {
+          totalReminders++;
+          console.log(`✅ Sent consolidated reminder to ${member.user.tag} for ${raids.length} raids`);
+        } else {
+          totalErrors++;
+          console.error(`❌ Failed to send reminder to ${member.user.tag}: ${result.error}`);
+        }
+
+        // Small delay to avoid rate limiting
+        await new Promise(resolve => setTimeout(resolve, 100));
+      } catch (error) {
+        totalErrors++;
+        console.error(`❌ Error sending reminder to ${member.user.tag}:`, error);
+        results.push({
+          success: false,
+          member: member.user.tag,
+          userId: member.id,
+          raidCount: raids.length,
+          error: error.message
+        });
+      }
+    }
+
+    console.log(`🎯 Daily check complete: ${raidEvents.length} raids processed, ${totalReminders} consolidated reminders sent, ${totalErrors} errors`);
 
     return {
       success: true,

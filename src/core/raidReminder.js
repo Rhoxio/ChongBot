@@ -109,10 +109,66 @@ async function sendRaidReminders(members, raid) {
   return results;
 }
 
+/**
+ * Create a consolidated reminder message for multiple raids
+ * @param {Array} raids - Array of raid event objects
+ * @returns {string} Formatted reminder message for multiple raids
+ */
+function createConsolidatedReminderMessage(raids) {
+  if (raids.length === 1) {
+    return createReminderMessage(raids[0]);
+  }
+
+  let message = `Hey! Don't forget to sign up for these upcoming raids:\n\n`;
+
+  raids.forEach((raid, index) => {
+    const raidDate = formatDate(raid.startTime);
+    const raidTime = formatTime(raid.startTime);
+    const raidTitle = raid.title ? ` "${raid.title}"` : '';
+
+    message += `**${index + 1}.** ${raidTitle} on ${raidDate} at ${raidTime}\n`;
+    message += `   Sign up: <#${raid.channelId}>\n\n`;
+  });
+
+  message += `Make sure to sign up for all the raids you plan to attend! 🏆`;
+
+  return message;
+}
+
+/**
+ * Send a consolidated raid reminder DM for multiple raids
+ * @param {Object} member - Discord guild member object
+ * @param {Array} raids - Array of raid event objects
+ * @returns {Object} Result object with success status and details
+ */
+async function sendConsolidatedRaidReminder(member, raids) {
+  const message = createConsolidatedReminderMessage(raids);
+
+  try {
+    await member.send(message);
+    return {
+      success: true,
+      member: member.user.tag,
+      userId: member.user.id,
+      raidCount: raids.length
+    };
+  } catch (error) {
+    return {
+      success: false,
+      member: member.user.tag,
+      userId: member.user.id,
+      raidCount: raids.length,
+      error: error.message
+    };
+  }
+}
+
 module.exports = {
   formatDate,
   formatTime,
   createReminderMessage,
   sendRaidReminder,
-  sendRaidReminders
+  sendRaidReminders,
+  createConsolidatedReminderMessage,
+  sendConsolidatedRaidReminder
 };

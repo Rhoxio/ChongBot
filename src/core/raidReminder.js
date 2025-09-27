@@ -5,11 +5,20 @@
 
 /**
  * Format a date for display in raid reminders
- * @param {string|Date} dateTime - The date/time to format
+ * @param {string|Date|number} dateTime - The date/time to format (Unix timestamp or Date)
  * @returns {string} Formatted date string
  */
 function formatDate(dateTime) {
-  const date = new Date(dateTime);
+  let date;
+
+  // Handle Unix timestamps (seconds) from Raid Helper API
+  if (typeof dateTime === 'number' && dateTime < 10000000000) {
+    // If timestamp is less than 10 billion, it's likely in seconds, convert to milliseconds
+    date = new Date(dateTime * 1000);
+  } else {
+    date = new Date(dateTime);
+  }
+
   return date.toLocaleDateString('en-US', {
     weekday: 'long',
     year: 'numeric',
@@ -21,11 +30,20 @@ function formatDate(dateTime) {
 
 /**
  * Format a time for display in raid reminders
- * @param {string|Date} dateTime - The date/time to format
+ * @param {string|Date|number} dateTime - The date/time to format (Unix timestamp or Date)
  * @returns {string} Formatted time string
  */
 function formatTime(dateTime) {
-  const date = new Date(dateTime);
+  let date;
+
+  // Handle Unix timestamps (seconds) from Raid Helper API
+  if (typeof dateTime === 'number' && dateTime < 10000000000) {
+    // If timestamp is less than 10 billion, it's likely in seconds, convert to milliseconds
+    date = new Date(dateTime * 1000);
+  } else {
+    date = new Date(dateTime);
+  }
+
   return date.toLocaleTimeString('en-US', {
     hour: 'numeric',
     minute: '2-digit',
@@ -46,10 +64,11 @@ function createReminderMessage(raid) {
   const raidDate = formatDate(raid.startTime);
   const raidTime = formatTime(raid.startTime);
   const raidTitle = raid.title ? ` "${raid.title}"` : '';
+  const channelLink = raid.channelId ? `<#${raid.channelId}>` : 'Raid Helper (no Discord channel linked)';
 
   return `Hey! Don't forget to sign up for the raid${raidTitle} on ${raidDate} at ${raidTime}.
 
-You can sign up here: <#${raid.channelId}>`;
+You can sign up here: ${channelLink}`;
 }
 
 /**

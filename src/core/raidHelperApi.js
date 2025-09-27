@@ -104,8 +104,15 @@ async function fetchUpcomingRaids(serverId = config.guildId, days = 3) {
         id: events[0].id,
         title: events[0].title,
         startTime: events[0].startTime,
+        startTimeConverted: new Date(events[0].startTime * 1000).toISOString(),
         hasSignUps: !!events[0].signUps,
         signUpCount: events[0].signUps ? events[0].signUps.length : 0
+      });
+
+      // Log a few more events to see the pattern
+      console.log(`📋 First 3 events timestamps:`);
+      events.slice(0, 3).forEach((event, index) => {
+        console.log(`  ${index + 1}. "${event.title}" - ${event.startTime} (${new Date(event.startTime * 1000).toISOString()})`);
       });
     }
 

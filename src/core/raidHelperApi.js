@@ -95,8 +95,12 @@ async function fetchUpcomingRaids(serverId = config.guildId, days = 3) {
     });
 
     // Filter and return only the events array
-    const events = data.postedEvents || [];
+    let events = data.postedEvents || [];
     console.log(`📅 Found ${events.length} upcoming events in next ${days} days`);
+
+    // Sort events by start time (earliest first)
+    events = events.sort((a, b) => a.startTime - b.startTime);
+    console.log(`📅 Sorted events by start time (earliest first)`);
 
     // Log sample event structure for debugging
     if (events.length > 0) {
@@ -109,10 +113,11 @@ async function fetchUpcomingRaids(serverId = config.guildId, days = 3) {
         signUpCount: events[0].signUps ? events[0].signUps.length : 0
       });
 
-      // Log a few more events to see the pattern
-      console.log(`📋 First 3 events timestamps:`);
+      // Log a few more events to see the pattern (now sorted by time)
+      console.log(`📋 First 3 events by start time:`);
       events.slice(0, 3).forEach((event, index) => {
-        console.log(`  ${index + 1}. "${event.title}" - ${event.startTime} (${new Date(event.startTime * 1000).toISOString()})`);
+        const eventDate = new Date(event.startTime * 1000);
+        console.log(`  ${index + 1}. "${event.title}" - ${event.startTime} (${eventDate.toISOString()})`);
       });
 
       // Look for the specific Sunday MSV event the user mentioned

@@ -847,13 +847,15 @@ async function handleDebugRaidCheckCommand(interaction) {
       report += `📅 No events found in the next 3 days.\n`;
       report += `💡 Try creating events in Raid Helper for testing.`;
     } else {
-      // Group results by event for display
-      const eventResults = new Map();
+      // Show only first 8 events to avoid Discord length limits
+      const eventsToShow = upcomingEvents.slice(0, 8);
+      let totalMissingCount = 0;
 
       // Process each event to show individual breakdown
-      for (const event of upcomingEvents) {
+      for (const event of eventsToShow) {
         const eventSignups = event.signUps || [];
         const missingSignups = findMissingSignups(raidEligibleMembers, eventSignups);
+        totalMissingCount += missingSignups.length;
 
         const raidDate = formatDate(event.startTime);
 
@@ -861,14 +863,20 @@ async function handleDebugRaidCheckCommand(interaction) {
         report += `├ 📝 Signed up: ${eventSignups.length}\n`;
         report += `├ ⚠️ Missing: ${missingSignups.length}\n`;
 
-        if (missingSignups.length > 0 && missingSignups.length <= 10) {
+        if (missingSignups.length > 0 && missingSignups.length <= 5) {
           const names = missingSignups.map(m => m.user.username).join(', ');
           report += `└ 📤 Would DM: ${names}\n\n`;
-        } else if (missingSignups.length > 10) {
-          report += `└ 📤 Would DM: ${missingSignups.length} members (too many to list)\n\n`;
+        } else if (missingSignups.length > 5) {
+          report += `└ 📤 Would DM: ${missingSignups.length} members\n\n`;
         } else {
           report += `└ ✅ All eligible members signed up!\n\n`;
         }
+      }
+
+      // Add summary if there are more events
+      if (upcomingEvents.length > 8) {
+        report += `\n**📊 Summary:** Showing first 8 of ${upcomingEvents.length} events\n`;
+        report += `**💬 Total missing reminders:** ${result.totalReminders} consolidated DMs would be sent\n\n`;
       }
 
       // Send ONE real test DM to the moderator if there are events
@@ -878,15 +886,12 @@ async function handleDebugRaidCheckCommand(interaction) {
       }
     }
 
-    // Split long reports if needed (Discord has a 2000 character limit)
+    // Ensure report isn't too long (Discord has a 2000 character limit)
     if (report.length > 1900) {
-      const firstPart = report.substring(0, 1900);
-      const lastNewline = firstPart.lastIndexOf('\n');
-      const part1 = report.substring(0, lastNewline);
-      const part2 = report.substring(lastNewline);
-
-      await interaction.editReply({ content: part1 });
-      await interaction.followUp({ content: part2, ephemeral: true });
+      // If still too long after limiting to 8 events, truncate more aggressively
+      console.log(`⚠️ Report too long (${report.length} chars), truncating...`);
+      const truncatedReport = report.substring(0, 1800) + '\n\n**... (truncated for length)**';
+      await interaction.editReply({ content: truncatedReport });
     } else {
       await interaction.editReply({ content: report });
     }

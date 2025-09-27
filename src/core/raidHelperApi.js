@@ -1,0 +1,280 @@
+/**
+ * Raid Helper API integration
+ * Handles communication with Raid Helper API for event and signup data
+ */
+
+const config = require('../config/config');
+
+// Node.js 18+ has fetch built-in, but for older versions we might need node-fetch
+// For now, assume Node 18+ environment or polyfill is available
+if (typeof fetch === 'undefined') {
+  console.warn('⚠️ fetch is not available - Raid Helper API calls will fail');
+}
+
+const RAID_HELPER_BASE_URL = 'https://raid-helper.dev/api';
+
+/**
+ * Make a request to the Raid Helper API
+ * @param {string} endpoint - API endpoint (without base URL)
+ * @param {Object} options - Additional fetch options
+ * @returns {Promise<Object>} API response data
+ */
+async function makeRaidHelperRequest(endpoint, options = {}) {
+  const url = `${RAID_HELPER_BASE_URL}${endpoint}`;
+
+  // Validate API key exists
+  if (!config.raidHelperApiKey) {
+    throw new Error('Raid Helper API key not configured in environment variables');
+  }
+
+  const defaultHeaders = {
+    'Authorization': config.raidHelperApiKey,
+    'Content-Type': 'application/json'
+  };
+
+  const requestOptions = {
+    method: 'GET',
+    headers: { ...defaultHeaders, ...options.headers },
+    ...options
+  };
+
+  try {
+    console.log(`🔗 Making Raid Helper API request to: ${endpoint}`);
+    console.log(`🔑 Using API key: ${config.raidHelperApiKey ? config.raidHelperApiKey.substring(0, 10) + '...' : 'NOT SET'}`);
+    console.log(`📋 Request headers:`, { ...requestOptions.headers, Authorization: '[REDACTED]' });
+
+    const response = await fetch(url, requestOptions);
+
+    console.log(`📡 Response status: ${response.status} ${response.statusText}`);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`❌ API Error Response:`, errorText);
+      throw new Error(`Raid Helper API error: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+
+    const data = await response.json();
+    console.log(`✅ Raid Helper API request successful - received ${JSON.stringify(data).length} characters`);
+    return data;
+  } catch (error) {
+    console.error(`❌ Raid Helper API request failed:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Fetch events from the server for the next specified number of days
+ * @param {string} serverId - Discord server ID
+ * @param {number} days - Number of days to look ahead (default: 3)
+ * @returns {Promise<Array>} Array of upcoming raid events
+ */
+async function fetchUpcomingRaids(serverId = config.guildId, days = 3) {
+  const now = new Date();
+  const endDate = new Date();
+  endDate.setDate(now.getDate() + days);
+
+  const startTimeFilter = Math.floor(now.getTime() / 1000);
+  const endTimeFilter = Math.floor(endDate.getTime() / 1000);
+
+  console.log(`📅 Fetching events from ${now.toISOString()} to ${endDate.toISOString()}`);
+  console.log(`📅 Unix filters: ${startTimeFilter} to ${endTimeFilter}`);
+
+  const endpoint = `/v3/servers/${serverId}/events`;
+
+  try {
+    const data = await makeRaidHelperRequest(endpoint, {
+      method: 'GET',
+      headers: {
+        'StartTimeFilter': startTimeFilter.toString(),
+        'EndTimeFilter': endTimeFilter.toString(),
+        'IncludeSignUps': 'true'
+      }
+    });
+
+    // Filter and return only the events array
+    const events = data.postedEvents || [];
+    console.log(`📅 Found ${events.length} upcoming events in next ${days} days`);
+
+    // Log sample event structure for debugging
+    if (events.length > 0) {
+      console.log(`📋 Sample event structure:`, {
+        id: events[0].id,
+        title: events[0].title,
+        startTime: events[0].startTime,
+        hasSignUps: !!events[0].signUps,
+        signUpCount: events[0].signUps ? events[0].signUps.length : 0
+      });
+    }
+
+    return events;
+  } catch (error) {
+    console.error(`❌ Failed to fetch upcoming raids:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Fetch a specific event by ID
+ * @param {string} eventId - Raid Helper event ID
+ * @returns {Promise<Object>} Event data with signups
+ */
+async function fetchEventById(eventId) {
+  const endpoint = `/v2/events/${eventId}`;
+  const data = await makeRaidHelperRequest(endpoint);
+  console.log(`📋 Fetched event: ${data.title || 'Unknown'} (${eventId})`);
+  return data;
+}
+
+/**
+ * Get signup information for a specific event
+ * @param {string} eventId - Raid Helper event ID
+ * @returns {Promise<Array>} Array of signup objects
+ */
+async function getRaidSignups(eventId) {
+  const event = await fetchEventById(eventId);
+  const signups = event.signUps || [];
+  console.log(`👥 Found ${signups.length} signups for event ${eventId}`);
+  return signups;
+}
+
+/**
+ * Extract Discord user IDs from Raid Helper signups
+ * @param {Array} signups - Array of Raid Helper signup objects
+ * @returns {Set<string>} Set of Discord user IDs who are signed up
+ */
+function extractSignedUpUserIds(signups) {
+  const userIds = new Set();
+
+  for (const signup of signups) {
+    if (signup.userId) {
+      userIds.add(signup.userId);
+    }
+  }
+
+  console.log(`🔍 Extracted ${userIds.size} unique user IDs from signups`);
+  return userIds;
+}
+
+/**
+ * Check if an event is likely a raid based on title/description
+ * This is a basic filter - can be enhanced based on actual event patterns
+ * @param {Object} event - Raid Helper event object
+ * @returns {boolean} True if event appears to be a raid
+ */
+function isRaidEvent(event) {
+  const title = (event.title || '').toLowerCase();
+  const description = (event.description || '').toLowerCase();
+
+  // Basic raid keywords - can be customized based on your guild's naming conventions
+  const raidKeywords = [
+    'raid', 'bwl', 'mc', 'molten core', 'blackwing lair', 'aq40', 'naxx', 'naxxramas',
+    'onyxia', 'zg', 'zul\'gurub', 'aq20', 'temple', 'karazhan', 'kara', 'gruul',
+    'magtheridon', 'ssc', 'tk', 'hyjal', 'bt', 'sunwell', 'icc', 'icecrown',
+    'ulduar', 'toc', 'naxx25', 'naxx10', 'weekly', 'clear'
+  ];
+
+  return raidKeywords.some(keyword =>
+    title.includes(keyword) || description.includes(keyword)
+  );
+}
+
+/**
+ * Filter events to only include raids
+ * @param {Array} events - Array of Raid Helper events
+ * @returns {Array} Filtered array of raid events
+ */
+function filterRaidEvents(events) {
+  const raidEvents = events.filter(isRaidEvent);
+  console.log(`🏆 Filtered to ${raidEvents.length} raid events from ${events.length} total events`);
+  return raidEvents;
+}
+
+/**
+ * Test the Raid Helper API connection with a simple request
+ * Uses the public event endpoint which doesn't require server authorization
+ * @returns {Promise<Object>} Test results
+ */
+async function testApiConnection() {
+  try {
+    console.log('🧪 Testing Raid Helper API connection...');
+
+    // Use the example event from the documentation (public endpoint, no auth required)
+    const testEventId = '998707032230203474';
+    const endpoint = `/v2/events/${testEventId}`;
+
+    // Make request without authorization headers for this public endpoint
+    const url = `${RAID_HELPER_BASE_URL}${endpoint}`;
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      throw new Error(`Test API call failed: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+
+    console.log('✅ Raid Helper API connection test successful!');
+    console.log(`📋 Test event: "${data.title}" (${data.id})`);
+
+    return {
+      success: true,
+      eventTitle: data.title,
+      eventId: data.id,
+      hasSignups: !!(data.signUps && data.signUps.length > 0)
+    };
+
+  } catch (error) {
+    console.error('❌ Raid Helper API connection test failed:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+}
+
+/**
+ * Test the server-specific API with your actual configuration
+ * @param {string} serverId - Your Discord server ID
+ * @returns {Promise<Object>} Test results
+ */
+async function testServerApiConnection(serverId = config.guildId) {
+  try {
+    console.log(`🧪 Testing server-specific API for guild: ${serverId}`);
+
+    if (!config.raidHelperApiKey) {
+      throw new Error('RAID_HELPER_API_KEY not set in environment variables');
+    }
+
+    // Try to fetch events for your server (this requires auth)
+    const events = await fetchUpcomingRaids(serverId, 7); // Next 7 days
+
+    return {
+      success: true,
+      totalEvents: events.length,
+      raidEvents: filterRaidEvents(events).length,
+      sampleEvent: events.length > 0 ? {
+        title: events[0].title,
+        startTime: events[0].startTime,
+        hasSignups: !!(events[0].signUps && events[0].signUps.length > 0)
+      } : null
+    };
+
+  } catch (error) {
+    console.error('❌ Server API test failed:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+}
+
+module.exports = {
+  makeRaidHelperRequest,
+  fetchUpcomingRaids,
+  fetchEventById,
+  getRaidSignups,
+  extractSignedUpUserIds,
+  isRaidEvent,
+  filterRaidEvents,
+  testApiConnection,
+  testServerApiConnection
+};

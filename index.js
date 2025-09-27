@@ -1,10 +1,11 @@
-const { Client, GatewayIntentBits, Events } = require('discord.js');
+const { Client, GatewayIntentBits, Events, ActionRowBuilder } = require('discord.js');
 const config = require('./src/config/config');
 const { handleCommands } = require('./src/handlers/commands');
 const { createVerificationEmbed, createVerificationButton } = require('./src/core/verification');
 const { handleButtonInteraction, handleModalSubmit, handleSelectMenuInteraction } = require('./src/handlers/interactions');
 const { setupMemberEventListeners } = require('./src/handlers/members');
 const { createHealthServer } = require('./src/core/server');
+const { initializeRaidScheduler, testSchedulerSetup } = require('./src/core/raidScheduler');
 
 // Create a new client instance
 const client = new Client({
@@ -58,7 +59,31 @@ client.once(Events.ClientReady, async (readyClient) => {
     if (verifyChannel) {
       await setupVerificationMessage(verifyChannel);
     }
-    
+
+    // Initialize raid signup reminder scheduler
+    try {
+      console.log('⏰ Setting up raid signup reminder scheduler...');
+      const schedulerTest = await testSchedulerSetup(client);
+
+      if (schedulerTest.success) {
+        console.log(`✅ Scheduler test passed for guild: ${schedulerTest.guild}`);
+        console.log(`⏰ Next scheduled run: ${schedulerTest.nextRun.nextRunPST}`);
+
+        // Initialize the actual scheduler
+        initializeRaidScheduler(client);
+        console.log('🎯 Raid signup reminder scheduler is now active!');
+      } else {
+        console.error('❌ Scheduler test failed:', schedulerTest.error);
+        if (schedulerTest.issues) {
+          console.error('⚠️ Configuration issues:', schedulerTest.issues);
+        }
+        console.error('🚫 Raid reminder scheduler NOT started');
+      }
+    } catch (schedulerError) {
+      console.error('❌ Error setting up raid scheduler:', schedulerError);
+      console.error('🚫 Raid reminder scheduler NOT started - bot will continue without it');
+    }
+
     console.log(`🚀 Bot is ready with button-based verification!`);
   } catch (error) {
     console.error('❌ Error during startup:', error);

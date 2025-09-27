@@ -3,6 +3,9 @@ const config = require('../config/config');
 const { createVerificationEmbed, createVerificationButton } = require('../core/verification');
 const { getRandomChongalation, getChongalationByAuthor, getAllAuthors } = require('./chongalations');
 const { assignCommunityRole } = require('../core/roles');
+const { sendRaidReminder } = require('../core/raidReminder');
+const { performDailyRaidCheck, getRaidEligibleMembers, findMissingSignups } = require('./raidSignupCheck');
+const { fetchUpcomingRaids, filterRaidEvents, getRaidSignups, testApiConnection, testServerApiConnection } = require('../core/raidHelperApi');
 
 const commands = [
   // Verify user manually
@@ -91,6 +94,24 @@ const commands = [
       option.setName('character')
         .setDescription('Exact character name (e.g., Ðruið, Mäge, etc.)')
         .setRequired(true)),
+
+  // Debug raid reminder message (Moderators only)
+  new SlashCommandBuilder()
+    .setName('debug-raid-reminder')
+    .setDescription('Send yourself a test raid reminder DM (Moderators only)')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
+
+  // Debug raid check dry-run (Moderators only)
+  new SlashCommandBuilder()
+    .setName('debug-raid-check')
+    .setDescription('Test full raid check logic without sending DMs (Moderators only)')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
+
+  // Test Raid Helper API connection (Moderators only)
+  new SlashCommandBuilder()
+    .setName('test-raid-api')
+    .setDescription('Test Raid Helper API connection and configuration (Moderators only)')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
 ];
 
 // Check if user has admin permissions (either Discord admin or allow-listed)
@@ -121,9 +142,10 @@ async function handleCommands(interaction) {
   
   // Define admin-only commands
   const adminCommands = [
-    'verify', 'unverify', 'status', 'stats', 
-    'reset-verify-message', 'test-verification', 
-    'force-setup', 'auto-assign-roles'
+    'verify', 'unverify', 'status', 'stats',
+    'reset-verify-message', 'test-verification',
+    'force-setup', 'auto-assign-roles',
+    'debug-raid-reminder', 'debug-raid-check', 'test-raid-api'
   ];
   
   // Check admin permissions for sensitive commands
@@ -171,6 +193,15 @@ async function handleCommands(interaction) {
         break;
       case 'logsby':
         await handleLogsByCommand(interaction);
+        break;
+      case 'debug-raid-reminder':
+        await handleDebugRaidReminderCommand(interaction);
+        break;
+      case 'debug-raid-check':
+        await handleDebugRaidCheckCommand(interaction);
+        break;
+      case 'test-raid-api':
+        await handleTestRaidApiCommand(interaction);
         break;
       default:
         await interaction.reply({ content: 'Unknown command!', ephemeral: true });
@@ -723,6 +754,180 @@ async function handleLogsByCommand(interaction) {
   await interaction.reply({ embeds: [embed] });
   
   console.log(`📊 ${interaction.user.tag} requested logs for exact character name: ${characterName}`);
+}
+
+async function handleDebugRaidReminderCommand(interaction) {
+  try {
+    // Create mock raid data for testing
+    const mockRaid = {
+      startTime: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // Tomorrow
+      channelId: interaction.channelId, // Use current channel for test
+      title: 'Test Raid Event (Debug)'
+    };
+
+    // Send actual DM using the same logic as the cron job
+    const result = await sendRaidReminder(interaction.member, mockRaid);
+
+    if (result.success) {
+      await interaction.reply({
+        content: '✅ Test reminder sent to your DMs! Check your messages to see how the reminder looks.',
+        ephemeral: true
+      });
+      console.log(`🧪 ${interaction.user.tag} tested raid reminder DM`);
+    } else {
+      await interaction.reply({
+        content: `❌ Failed to send test DM: ${result.error}`,
+        ephemeral: true
+      });
+      console.log(`❌ ${interaction.user.tag} failed to receive test DM: ${result.error}`);
+    }
+
+  } catch (error) {
+    console.error(`❌ Error in debug raid reminder command:`, error);
+    await interaction.reply({
+      content: '❌ Error testing raid reminder. Please try again.',
+      ephemeral: true
+    });
+  }
+}
+
+async function handleDebugRaidCheckCommand(interaction) {
+  await interaction.deferReply({ ephemeral: true });
+
+  try {
+    console.log(`🧪 ${interaction.user.tag} initiated debug raid check`);
+
+    // === REAL API CALLS (same as cron job) ===
+    const upcomingEvents = await fetchUpcomingRaids();
+    const raidEvents = filterRaidEvents(upcomingEvents);
+    const raidEligibleMembers = await getRaidEligibleMembers(interaction.guild);
+
+    let report = `**🔍 Raid Check Debug Report**\n\n`;
+    report += `**Upcoming Events Found:** ${upcomingEvents.length}\n`;
+    report += `**Raid Events Found:** ${raidEvents.length}\n`;
+    report += `**Raid-Eligible Members:** ${raidEligibleMembers.length}\n\n`;
+
+    if (raidEvents.length === 0) {
+      report += `📅 No raid events found in the next 3 days.\n`;
+      report += `💡 Try creating a test event in Raid Helper with keywords like "raid", "mc", "bwl", etc.`;
+    } else {
+      for (const raid of raidEvents) {
+        const raidSignups = raid.signUps || [];
+        const missingSignups = findMissingSignups(raidEligibleMembers, raidSignups);
+
+        const raidDate = new Date(raid.startTime).toLocaleDateString('en-US', {
+          timeZone: 'America/Los_Angeles',
+          weekday: 'short',
+          month: 'short',
+          day: 'numeric'
+        });
+
+        report += `**${raid.title || 'Untitled Raid'}** (${raidDate})\n`;
+        report += `├ 📝 Signed up: ${raidSignups.length}\n`;
+        report += `├ ⚠️ Missing: ${missingSignups.length}\n`;
+
+        if (missingSignups.length > 0 && missingSignups.length <= 10) {
+          const names = missingSignups.map(m => m.user.username).join(', ');
+          report += `└ 📤 Would DM: ${names}\n\n`;
+        } else if (missingSignups.length > 10) {
+          report += `└ 📤 Would DM: ${missingSignups.length} members (too many to list)\n\n`;
+        } else {
+          report += `└ ✅ All eligible members signed up!\n\n`;
+        }
+      }
+
+      // Send ONE real test DM to the moderator if there are raids
+      if (raidEvents.length > 0) {
+        const testResult = await sendRaidReminder(interaction.member, raidEvents[0]);
+        report += `**🧪 Test DM sent to you:** ${testResult.success ? '✅ Success' : '❌ Failed - ' + testResult.error}`;
+      }
+    }
+
+    // Split long reports if needed (Discord has a 2000 character limit)
+    if (report.length > 1900) {
+      const firstPart = report.substring(0, 1900);
+      const lastNewline = firstPart.lastIndexOf('\n');
+      const part1 = report.substring(0, lastNewline);
+      const part2 = report.substring(lastNewline);
+
+      await interaction.editReply({ content: part1 });
+      await interaction.followUp({ content: part2, ephemeral: true });
+    } else {
+      await interaction.editReply({ content: report });
+    }
+
+    console.log(`✅ ${interaction.user.tag} completed debug raid check`);
+
+  } catch (error) {
+    console.error(`❌ Debug raid check failed for ${interaction.user.tag}:`, error);
+    await interaction.editReply({
+      content: `❌ Debug failed: ${error.message}\n\nThis could be due to:\n• Raid Helper API configuration\n• Missing permissions\n• Network connectivity`
+    });
+  }
+}
+
+async function handleTestRaidApiCommand(interaction) {
+  await interaction.deferReply({ ephemeral: true });
+
+  try {
+    console.log(`🧪 ${interaction.user.tag} testing Raid Helper API`);
+
+    let report = `**🔧 Raid Helper API Test Report**\n\n`;
+
+    // Test 1: Basic API connectivity (no auth required)
+    report += `**1. Basic API Connectivity Test**\n`;
+    const basicTest = await testApiConnection();
+    if (basicTest.success) {
+      report += `✅ Connection successful\n`;
+      report += `📋 Test event: "${basicTest.eventTitle}"\n`;
+      report += `🔗 Event ID: ${basicTest.eventId}\n\n`;
+    } else {
+      report += `❌ Connection failed: ${basicTest.error}\n\n`;
+    }
+
+    // Test 2: Server-specific API with your credentials
+    report += `**2. Server API Authentication Test**\n`;
+    const serverTest = await testServerApiConnection();
+    if (serverTest.success) {
+      report += `✅ Authentication successful\n`;
+      report += `📅 Total events found: ${serverTest.totalEvents}\n`;
+      report += `🏆 Raid events found: ${serverTest.raidEvents}\n`;
+
+      if (serverTest.sampleEvent) {
+        report += `📋 Sample event: "${serverTest.sampleEvent.title}"\n`;
+        report += `📅 Start time: ${serverTest.sampleEvent.startTime}\n`;
+        report += `👥 Has signups: ${serverTest.sampleEvent.hasSignups ? 'Yes' : 'No'}\n`;
+      } else {
+        report += `📅 No events found in the next 7 days\n`;
+      }
+    } else {
+      report += `❌ Authentication failed: ${serverTest.error}\n`;
+
+      // Provide troubleshooting info
+      if (serverTest.error.includes('API key')) {
+        report += `\n**Troubleshooting:**\n`;
+        report += `• Check that RAID_HELPER_API_KEY is set in .env\n`;
+        report += `• Get/refresh API key with /apikey command in Discord\n`;
+        report += `• Ensure bot has admin/manage server permissions\n`;
+      }
+    }
+
+    // Test 3: Configuration check
+    report += `\n**3. Configuration Check**\n`;
+    report += `🔑 API Key: ${config.raidHelperApiKey ? '✅ Set' : '❌ Missing'}\n`;
+    report += `🏠 Guild ID: ${config.guildId ? '✅ Set' : '❌ Missing'}\n`;
+    report += `👥 Raider Role: ${config.raiderRoleId ? '✅ Set' : '❌ Missing'}\n`;
+    report += `🔄 Trial Role: ${config.trialRoleId ? '✅ Set' : '❌ Missing'}\n`;
+
+    await interaction.editReply({ content: report });
+    console.log(`✅ ${interaction.user.tag} completed API test`);
+
+  } catch (error) {
+    console.error(`❌ API test failed for ${interaction.user.tag}:`, error);
+    await interaction.editReply({
+      content: `❌ API test encountered an error: ${error.message}\n\nCheck console logs for more details.`
+    });
+  }
 }
 
 module.exports = {

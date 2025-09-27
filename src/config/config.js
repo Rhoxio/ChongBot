@@ -19,7 +19,15 @@ module.exports = {
   pugRoleId: process.env.PUG_ROLE_ID,
   prospectRoleId: process.env.PROSPECT_ROLE_ID,
   guildieRoleId: process.env.GUILDIE_ROLE_ID,
+
+  // Raid Roles
+  officerRoleId: process.env.OFFICER_ROLE_ID,
+  raiderRoleId: process.env.RAIDER_ROLE_ID,
+  trialRoleId: process.env.TRIAL_ROLE_ID,
   
+  // Raid Helper API
+  raidHelperApiKey: process.env.RAID_HELPER_API_KEY,
+
   // Bot Settings
   requiredNicknameChange: process.env.REQUIRED_NICKNAME_CHANGE === 'true',
   adminUserIds: process.env.ADMIN_USER_IDS ? process.env.ADMIN_USER_IDS.split(',') : [],

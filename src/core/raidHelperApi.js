@@ -79,16 +79,19 @@ async function fetchUpcomingRaids(serverId = config.guildId, days = 3) {
   console.log(`📅 Fetching events from ${now.toISOString()} to ${endDate.toISOString()}`);
   console.log(`📅 Unix filters: ${startTimeFilter} to ${endTimeFilter}`);
 
-  const endpoint = `/v3/servers/${serverId}/events`;
+  // Build URL with query parameters instead of headers for filters
+  const baseEndpoint = `/v3/servers/${serverId}/events`;
+  const queryParams = new URLSearchParams({
+    StartTimeFilter: startTimeFilter.toString(),
+    EndTimeFilter: endTimeFilter.toString(),
+    IncludeSignUps: 'true'
+  });
+  const endpoint = `${baseEndpoint}?${queryParams.toString()}`;
 
   try {
     const data = await makeRaidHelperRequest(endpoint, {
-      method: 'GET',
-      headers: {
-        'StartTimeFilter': startTimeFilter.toString(),
-        'EndTimeFilter': endTimeFilter.toString(),
-        'IncludeSignUps': 'true'
-      }
+      method: 'GET'
+      // No extra headers needed - filters are in URL params
     });
 
     // Filter and return only the events array
@@ -244,19 +247,39 @@ async function testServerApiConnection(serverId = config.guildId) {
       throw new Error('RAID_HELPER_API_KEY not set in environment variables');
     }
 
-    // Try to fetch events for your server (this requires auth)
-    const events = await fetchUpcomingRaids(serverId, 7); // Next 7 days
+    // First try a simple request without filters to test basic auth
+    console.log('🔍 Testing basic server API access...');
+    const simpleEndpoint = `/v3/servers/${serverId}/events`;
 
-    return {
-      success: true,
-      totalEvents: events.length,
-      raidEvents: filterRaidEvents(events).length,
-      sampleEvent: events.length > 0 ? {
-        title: events[0].title,
-        startTime: events[0].startTime,
-        hasSignups: !!(events[0].signUps && events[0].signUps.length > 0)
-      } : null
-    };
+    try {
+      const simpleData = await makeRaidHelperRequest(simpleEndpoint, {
+        method: 'GET'
+      });
+
+      console.log('✅ Basic server API access successful');
+
+      // Now try with filters
+      console.log('🔍 Testing with time filters...');
+      const events = await fetchUpcomingRaids(serverId, 7); // Next 7 days
+
+      return {
+        success: true,
+        totalEvents: events.length,
+        raidEvents: filterRaidEvents(events).length,
+        sampleEvent: events.length > 0 ? {
+          title: events[0].title,
+          startTime: events[0].startTime,
+          hasSignups: !!(events[0].signUps && events[0].signUps.length > 0)
+        } : null
+      };
+
+    } catch (authError) {
+      // If basic auth fails, provide specific troubleshooting
+      if (authError.message.includes('401') || authError.message.includes('authorization')) {
+        throw new Error(`Authentication failed - API key may be invalid or expired. Try refreshing with /apikey command in Discord.`);
+      }
+      throw authError;
+    }
 
   } catch (error) {
     console.error('❌ Server API test failed:', error);

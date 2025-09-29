@@ -15,6 +15,10 @@ const { sendRaidReminders, sendConsolidatedRaidReminder } = require('../core/rai
 async function getRaidEligibleMembers(guild) {
   console.log('🔍 Fetching raid-eligible members...');
 
+  // Force fetch all guild members to ensure we have complete member data
+  await guild.members.fetch();
+  console.log(`✅ Fetched ${guild.members.cache.size} guild members`);
+
   const raiderRole = guild.roles.cache.get(config.raiderRoleId);
   const trialRole = guild.roles.cache.get(config.trialRoleId);
 

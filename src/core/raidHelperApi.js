@@ -112,46 +112,50 @@ async function fetchUpcomingRaids(serverId = config.guildId, days = 3) {
     events = events.sort((a, b) => a.startTime - b.startTime);
     console.log(`📅 Sorted ${events.length} events by start time (earliest first)`);
 
-    // Log sample event structure for debugging
-    if (events.length > 0) {
-      console.log(`📋 Sample event structure:`, {
-        id: events[0].id,
-        title: events[0].title,
-        startTime: events[0].startTime,
-        startTimeConverted: new Date(events[0].startTime * 1000).toISOString(),
-        hasSignUps: !!events[0].signUps,
-        signUpCount: events[0].signUps ? events[0].signUps.length : 0
-      });
+    // Step 2: Fetch individual event details with signup data using v2 API
+    console.log(`🔍 Fetching signup data for ${events.length} events using v2 API...`);
+    const eventsWithSignups = [];
 
-      // Log a few more events to see the pattern (now sorted by time)
-      console.log(`📋 First 3 events by start time:`);
-      events.slice(0, 3).forEach((event, index) => {
-        const eventDate = new Date(event.startTime * 1000);
-        console.log(`  ${index + 1}. "${event.title}" - ${event.startTime} (${eventDate.toISOString()})`);
-      });
+    for (let i = 0; i < events.length; i++) {
+      const event = events[i];
+      console.log(`📋 Fetching signup data for event ${i + 1}/${events.length}: "${event.title}" (${event.id})`);
 
-      // Look for the specific Sunday MSV event the user mentioned
-      const targetEventId = '1419519142431821904';
-      const foundTargetEvent = events.find(event => event.id === targetEventId);
-      if (foundTargetEvent) {
-        console.log(`🎯 FOUND target event: "${foundTargetEvent.title}" - ${foundTargetEvent.startTime} (${new Date(foundTargetEvent.startTime * 1000).toISOString()})`);
-        console.log(`📋 Target event details:`, {
-          id: foundTargetEvent.id,
-          title: foundTargetEvent.title,
-          startTime: foundTargetEvent.startTime,
-          hasSignUps: !!foundTargetEvent.signUps,
-          signUpCount: foundTargetEvent.signUps ? foundTargetEvent.signUps.length : 0,
-          signUpsStructure: foundTargetEvent.signUps ? 'Array with ' + foundTargetEvent.signUps.length + ' items' : 'null/undefined',
-          channelId: foundTargetEvent.channelId || 'MISSING',
-          allKeys: Object.keys(foundTargetEvent)
-        });
-      } else {
-        console.log(`❌ Target event ${targetEventId} NOT FOUND in returned ${events.length} events`);
-        console.log(`📋 All event IDs: ${events.slice(0, 5).map(e => e.id).join(', ')}...`);
+      try {
+        const eventWithSignups = await fetchEventById(event.id);
+        eventsWithSignups.push(eventWithSignups);
+        console.log(`✅ Got ${eventWithSignups.signUps ? eventWithSignups.signUps.length : 0} signups for "${event.title}"`);
+      } catch (error) {
+        console.error(`❌ Failed to fetch signup data for event ${event.id}:`, error.message);
+        // Add the original event without signup data as fallback
+        eventsWithSignups.push({ ...event, signUps: [] });
+      }
+
+      // Small delay to avoid rate limiting
+      if (i < events.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 50));
       }
     }
 
-    return events;
+    // Log sample event structure for debugging
+    if (eventsWithSignups.length > 0) {
+      const firstEvent = eventsWithSignups[0];
+      console.log(`📋 Sample event structure with signup data:`, {
+        id: firstEvent.id,
+        title: firstEvent.title,
+        startTime: firstEvent.startTime,
+        startTimeConverted: new Date(firstEvent.startTime * 1000).toISOString(),
+        hasSignUps: !!firstEvent.signUps,
+        signUpCount: firstEvent.signUps ? firstEvent.signUps.length : 0
+      });
+
+      console.log(`📋 First 3 events by start time with signup counts:`);
+      eventsWithSignups.slice(0, 3).forEach((event, index) => {
+        console.log(`  ${index + 1}. "${event.title}" - ${event.startTime} (${new Date(event.startTime * 1000).toISOString()}) - ${event.signUps ? event.signUps.length : 0} signups`);
+      });
+    }
+
+    console.log(`✅ Successfully fetched ${eventsWithSignups.length} events with signup data`);
+    return eventsWithSignups;
   } catch (error) {
     console.error(`❌ Failed to fetch upcoming raids:`, error);
     throw error;

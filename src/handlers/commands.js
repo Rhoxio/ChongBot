@@ -5,7 +5,7 @@ const { getRandomChongalation, getChongalationByAuthor, getAllAuthors } = requir
 const { assignCommunityRole } = require('../core/roles');
 const { sendRaidReminder, formatDate, formatTime } = require('../core/raidReminder');
 const { performDailyRaidCheck, getRaidEligibleMembers, findMissingSignups, processRaidSignupCheck } = require('./raidSignupCheck');
-const { fetchUpcomingRaids, filterRaidEvents, getRaidSignups, testApiConnection, testServerApiConnection } = require('../core/raidHelperApi');
+const { fetchUpcomingRaids, filterRaidEvents, getRaidSignups, testApiConnection, testServerApiConnection, extractSignedUpUserIds } = require('../core/raidHelperApi');
 
 const commands = [
   // Verify user manually

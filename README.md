@@ -6,7 +6,7 @@ A comprehensive Discord verification bot with a **two-step verification system**
 
 ### 🔐 **Two-Step Verification System**
 - **Step 1**: Modal form to set in-game character name
-- **Step 2**: Dropdown menu to select community role (Pug/Prospect/Guildie)
+- **Step 2**: Dropdown menu to selec/clat community role (Pug/Prospect/Guildie)
 - **Button-based UI** with beautiful Discord embeds
 - **No verification until both steps complete**
 

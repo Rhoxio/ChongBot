@@ -112,6 +112,12 @@ const commands = [
     .setName('test-raid-api')
     .setDescription('Test Raid Helper API connection and configuration (Moderators only)')
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
+
+  // Deep debug raid system (Moderators only)
+  new SlashCommandBuilder()
+    .setName('deep-debug-raid')
+    .setDescription('Deep debug of raid system - roles, API, signup detection (Moderators only)')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
 ];
 
 // Check if user has admin permissions (either Discord admin or allow-listed)
@@ -145,7 +151,7 @@ async function handleCommands(interaction) {
     'verify', 'unverify', 'status', 'stats',
     'reset-verify-message', 'test-verification',
     'force-setup', 'auto-assign-roles',
-    'debug-raid-reminder', 'debug-raid-check', 'test-raid-api'
+    'debug-raid-reminder', 'debug-raid-check', 'test-raid-api', 'deep-debug-raid'
   ];
   
   // Check admin permissions for sensitive commands
@@ -202,6 +208,9 @@ async function handleCommands(interaction) {
         break;
       case 'test-raid-api':
         await handleTestRaidApiCommand(interaction);
+        break;
+      case 'deep-debug-raid':
+        await handleDeepDebugRaidCommand(interaction);
         break;
       default:
         await interaction.reply({ content: 'Unknown command!', ephemeral: true });
@@ -970,6 +979,150 @@ async function handleTestRaidApiCommand(interaction) {
     console.error(`❌ API test failed for ${interaction.user.tag}:`, error);
     await interaction.editReply({
       content: `❌ API test encountered an error: ${error.message}\n\nCheck console logs for more details.`
+    });
+  }
+}
+
+async function handleDeepDebugRaidCommand(interaction) {
+  await interaction.deferReply({ ephemeral: true });
+
+  try {
+    console.log(`🔍 ${interaction.user.tag} initiated deep debug raid check`);
+    console.log('='.repeat(80));
+    console.log('🎭 DEEP RAID SYSTEM DEBUG - ROLE MEMBERSHIP');
+    console.log('='.repeat(80));
+
+    const guild = interaction.guild;
+
+    console.log(`📋 Configuration:`);
+    console.log(`   RAIDER_ROLE_ID: ${config.raiderRoleId}`);
+    console.log(`   TRIAL_ROLE_ID: ${config.trialRoleId}`);
+    console.log(`   Guild: ${guild.name} (${guild.id})`);
+    console.log(`   Member count: ${guild.memberCount}`);
+
+    // Check if roles exist
+    const raiderRole = guild.roles.cache.get(config.raiderRoleId);
+    const trialRole = guild.roles.cache.get(config.trialRoleId);
+
+    console.log(`🔍 Role Status:`);
+    console.log(`   Raider Role: ${raiderRole ? `✅ "${raiderRole.name}" (${raiderRole.members.size} members)` : `❌ Not found`}`);
+    console.log(`   Trial Role: ${trialRole ? `✅ "${trialRole.name}" (${trialRole.members.size} members)` : `❌ Not found`}`);
+
+    // Show all roles on the server to help identify the correct ones
+    console.log(`🔍 All roles on the server (showing roles with members):`);
+    const rolesWithMembers = guild.roles.cache
+      .filter(role => role.members.size > 0 && !role.managed && role.name !== '@everyone')
+      .sort((a, b) => b.members.size - a.members.size);
+
+    rolesWithMembers.forEach(role => {
+      console.log(`   - "${role.name}" (ID: ${role.id}) - ${role.members.size} members`);
+    });
+
+    if (raiderRole && raiderRole.members.size > 0) {
+      console.log(`👥 Raider Role Members:`);
+      raiderRole.members.forEach(member => {
+        console.log(`   - ${member.user.tag} (${member.displayName})`);
+      });
+    }
+
+    if (trialRole && trialRole.members.size > 0) {
+      console.log(`👥 Trial Role Members:`);
+      trialRole.members.forEach(member => {
+        console.log(`   - ${member.user.tag} (${member.displayName})`);
+      });
+    }
+
+    // Get raid-eligible members using the actual function
+    console.log(`🔍 Getting raid-eligible members using getRaidEligibleMembers()...`);
+    const raidEligibleMembers = await getRaidEligibleMembers(guild);
+    console.log(`📊 Total raid-eligible members found: ${raidEligibleMembers.length}`);
+
+    if (raidEligibleMembers.length > 0) {
+      console.log(`👥 All Raid-Eligible Members:`);
+      raidEligibleMembers.forEach(member => {
+        const roles = [];
+        if (member.roles.cache.has(config.raiderRoleId)) roles.push('Raider');
+        if (member.roles.cache.has(config.trialRoleId)) roles.push('Trial');
+        console.log(`   - ${member.user.tag} (${member.displayName}) [${roles.join(', ')}]`);
+      });
+    }
+
+    console.log('='.repeat(80));
+    console.log('🔗 API RESPONSE DEBUG');
+    console.log('='.repeat(80));
+
+    console.log(`📡 Fetching upcoming events from RaidHelper API...`);
+    const upcomingEvents = await fetchUpcomingRaids();
+    console.log(`📅 Found ${upcomingEvents.length} upcoming events in next 3 days`);
+
+    // Also test with longer date range
+    console.log(`📡 Fetching events for next 7 days to find events with signups...`);
+    const longerRangeEvents = await fetchUpcomingRaids(config.guildId, 7);
+    console.log(`📅 Found ${longerRangeEvents.length} events in next 7 days`);
+
+    const eventsWithSignups = longerRangeEvents.filter(event => event.signUps && event.signUps.length > 0);
+    console.log(`📝 Events with signup data: ${eventsWithSignups.length}`);
+
+    if (eventsWithSignups.length > 0) {
+      console.log(`🎯 Found events with signups! Analyzing first one...`);
+      const eventWithSignups = eventsWithSignups[0];
+      console.log(`   Event: "${eventWithSignups.title}"`);
+      console.log(`   Event ID: ${eventWithSignups.id}`);
+      console.log(`   Signups: ${eventWithSignups.signUps.length}`);
+      console.log(`   Sample signup structure:`, JSON.stringify(eventWithSignups.signUps[0], null, 4));
+
+      // Test signup extraction
+      const signedUpUserIds = extractSignedUpUserIds(eventWithSignups.signUps);
+      console.log(`   🔍 Extracted ${signedUpUserIds.size} unique user IDs from signups`);
+      console.log(`   👥 User IDs:`, Array.from(signedUpUserIds));
+
+      // Test missing signups calculation
+      if (raidEligibleMembers.length > 0) {
+        const missingSignups = findMissingSignups(raidEligibleMembers, eventWithSignups.signUps);
+        console.log(`   ⚠️ Missing signups: ${missingSignups.length} members`);
+        if (missingSignups.length > 0) {
+          console.log(`   📤 Members who need reminders:`);
+          missingSignups.forEach(member => {
+            console.log(`     - ${member.user.tag} (${member.displayName})`);
+          });
+        }
+      }
+    } else {
+      console.log(`❌ No events with signup data found. Analyzing events without signups...`);
+      if (longerRangeEvents.length > 0) {
+        const sampleEvent = longerRangeEvents[0];
+        console.log(`📋 Sample event: "${sampleEvent.title}"`);
+        console.log(`   ID: ${sampleEvent.id}`);
+        console.log(`   Start Time: ${sampleEvent.startTime} (${new Date(sampleEvent.startTime * 1000).toISOString()})`);
+        console.log(`   Channel ID: ${sampleEvent.channelId || 'Not set'}`);
+        console.log(`   Has signUps property: ${sampleEvent.hasOwnProperty('signUps')}`);
+        console.log(`   SignUps value: ${sampleEvent.signUps}`);
+        console.log(`   SignUps type: ${typeof sampleEvent.signUps}`);
+        console.log(`   Full event keys:`, Object.keys(sampleEvent));
+      }
+    }
+
+    console.log('='.repeat(80));
+    console.log('✅ Deep debug complete!');
+
+    // Prepare Discord response
+    let discordResponse = `**🔍 Deep Debug Complete**\n\n`;
+    discordResponse += `**Role Status:**\n`;
+    discordResponse += `├ Raider Role: ${raiderRole ? `✅ ${raiderRole.members.size} members` : `❌ Not found`}\n`;
+    discordResponse += `└ Trial Role: ${trialRole ? `✅ ${trialRole.members.size} members` : `❌ Not found`}\n\n`;
+    discordResponse += `**Raid-Eligible Members:** ${raidEligibleMembers.length}\n\n`;
+    discordResponse += `**API Status:**\n`;
+    discordResponse += `├ Events found (3 days): ${upcomingEvents.length}\n`;
+    discordResponse += `├ Events found (7 days): ${longerRangeEvents.length}\n`;
+    discordResponse += `└ Events with signups: ${eventsWithSignups.length}\n\n`;
+    discordResponse += `**📊 Check console logs for detailed breakdown**`;
+
+    await interaction.editReply({ content: discordResponse });
+
+  } catch (error) {
+    console.error(`❌ Deep debug failed for ${interaction.user.tag}:`, error);
+    await interaction.editReply({
+      content: `❌ Deep debug failed: ${error.message}\n\nCheck console logs for details.`
     });
   }
 }

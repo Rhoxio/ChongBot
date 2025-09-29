@@ -24,6 +24,7 @@ module.exports = {
   officerRoleId: process.env.OFFICER_ROLE_ID,
   raiderRoleId: process.env.RAIDER_ROLE_ID,
   trialRoleId: process.env.TRIAL_ROLE_ID,
+  rotwRoleId: process.env.ROTW_ROLE_ID,
   
   // Raid Helper API
   raidHelperApiKey: process.env.RAID_HELPER_API_KEY,

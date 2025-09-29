@@ -64,14 +64,51 @@ async function assignCommunityRole(member, roleChoice) {
  */
 async function assignUnverifiedRole(member) {
   const unverifiedRole = member.guild.roles.cache.get(config.unverifiedRoleId);
-  
+
   if (unverifiedRole && !member.roles.cache.has(config.unverifiedRoleId)) {
     await member.roles.add(unverifiedRole);
     console.log(`🔒 Added unverified role to ${member.user.tag}`);
   }
 }
 
+/**
+ * Transfers the Raider of the Week role to a new member
+ * Removes the role from current holder and assigns to new member
+ * @param {GuildMember} newMember - The Discord guild member to receive RotW role
+ * @param {Guild} guild - The Discord guild
+ * @returns {Promise<{previousHolder: string|null, newHolder: string}>} Transfer details
+ */
+async function transferRotwRole(newMember, guild) {
+  const rotwRole = guild.roles.cache.get(config.rotwRoleId);
+
+  if (!rotwRole) {
+    throw new Error(`RotW role not found (ID: ${config.rotwRoleId})`);
+  }
+
+  // Find current RotW holder
+  let previousHolder = null;
+  const currentHolder = rotwRole.members.first();
+
+  if (currentHolder) {
+    previousHolder = currentHolder.user.tag;
+    await currentHolder.roles.remove(rotwRole);
+    console.log(`👑 Removed RotW role from ${currentHolder.user.tag}`);
+  }
+
+  // Assign RotW role to new member
+  if (!newMember.roles.cache.has(config.rotwRoleId)) {
+    await newMember.roles.add(rotwRole);
+    console.log(`🏆 Added RotW role to ${newMember.user.tag}`);
+  }
+
+  return {
+    previousHolder,
+    newHolder: newMember.user.tag
+  };
+}
+
 module.exports = {
   assignCommunityRole,
-  assignUnverifiedRole
+  assignUnverifiedRole,
+  transferRotwRole
 };

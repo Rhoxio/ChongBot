@@ -2,7 +2,7 @@ const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits, ActionRowBuilder
 const config = require('../config/config');
 const { createVerificationEmbed, createVerificationButton } = require('../core/verification');
 const { getRandomChongalation, getChongalationByAuthor, getAllAuthors } = require('./chongalations');
-const { assignCommunityRole } = require('../core/roles');
+const { assignCommunityRole, transferRotwRole } = require('../core/roles');
 const { sendRaidReminder, formatDate, formatTime } = require('../core/raidReminder');
 const { performDailyRaidCheck, getRaidEligibleMembers, findMissingSignups, processRaidSignupCheck } = require('./raidSignupCheck');
 const { fetchUpcomingRaids, filterRaidEvents, getRaidSignups, testApiConnection, testServerApiConnection, extractSignedUpUserIds } = require('../core/raidHelperApi');
@@ -118,6 +118,16 @@ const commands = [
     .setName('deep-debug-raid')
     .setDescription('Deep debug of raid system - roles, API, signup detection (Moderators only)')
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
+
+  // Raider of the Week management (Admins only)
+  new SlashCommandBuilder()
+    .setName('raider-of-the-week')
+    .setDescription('Set a new Raider of the Week (Admins only)')
+    .addUserOption(option =>
+      option.setName('user')
+        .setDescription('User to designate as Raider of the Week')
+        .setRequired(true))
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles),
 ];
 
 // Check if user has admin permissions (either Discord admin or allow-listed)
@@ -151,7 +161,8 @@ async function handleCommands(interaction) {
     'verify', 'unverify', 'status', 'stats',
     'reset-verify-message', 'test-verification',
     'force-setup', 'auto-assign-roles',
-    'debug-raid-reminder', 'debug-raid-check', 'test-raid-api', 'deep-debug-raid'
+    'debug-raid-reminder', 'debug-raid-check', 'test-raid-api', 'deep-debug-raid',
+    'raider-of-the-week'
   ];
   
   // Check admin permissions for sensitive commands
@@ -211,6 +222,9 @@ async function handleCommands(interaction) {
         break;
       case 'deep-debug-raid':
         await handleDeepDebugRaidCommand(interaction);
+        break;
+      case 'raider-of-the-week':
+        await handleRotwCommand(interaction);
         break;
       default:
         await interaction.reply({ content: 'Unknown command!', ephemeral: true });
@@ -1148,6 +1162,39 @@ async function handleDeepDebugRaidCommand(interaction) {
     console.error(`❌ Deep debug failed for ${interaction.user.tag}:`, error);
     await interaction.editReply({
       content: `❌ Deep debug failed: ${error.message}\n\nCheck console logs for details.`
+    });
+  }
+}
+
+async function handleRotwCommand(interaction) {
+  const targetUser = interaction.options.getUser('user');
+  const member = await interaction.guild.members.fetch(targetUser.id);
+
+  try {
+    const transferResult = await transferRotwRole(member, interaction.guild);
+
+    const embed = new EmbedBuilder()
+      .setColor(0xFFD700)
+      .setTitle('👑 Raider of the Week Updated!')
+      .setDescription(`${targetUser.tag} has been designated as the new **Raider of the Week**!`)
+      .addFields(
+        { name: '🏆 New RotW', value: `${targetUser.tag}`, inline: true },
+        { name: '👑 Previous RotW', value: transferResult.previousHolder || 'None', inline: true },
+        { name: '📅 Updated by', value: `${interaction.user.tag}`, inline: true }
+      )
+      .setThumbnail(targetUser.displayAvatarURL())
+      .setFooter({ text: 'The special badge will now appear next to their name!' })
+      .setTimestamp();
+
+    await interaction.reply({ embeds: [embed] });
+
+    console.log(`👑 RotW role transferred from ${transferResult.previousHolder || 'none'} to ${targetUser.tag} by ${interaction.user.tag}`);
+
+  } catch (error) {
+    console.error(`❌ Error setting RotW for ${targetUser.tag}:`, error);
+    await interaction.reply({
+      content: `❌ Error setting Raider of the Week: ${error.message}. Please check bot permissions and role configuration.`,
+      ephemeral: true
     });
   }
 }

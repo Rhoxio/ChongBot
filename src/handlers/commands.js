@@ -999,6 +999,12 @@ async function handleDeepDebugRaidCommand(interaction) {
     console.log(`   TRIAL_ROLE_ID: ${config.trialRoleId}`);
     console.log(`   Guild: ${guild.name} (${guild.id})`);
     console.log(`   Member count: ${guild.memberCount}`);
+    console.log(`   Bot permissions:`, guild.members.me ? guild.members.me.permissions.toArray() : 'Bot member not cached');
+
+    // Force fetch all members to ensure we have complete data
+    console.log(`🔄 Fetching all guild members...`);
+    await guild.members.fetch();
+    console.log(`✅ Fetched ${guild.members.cache.size} members`);
 
     // Check if roles exist
     const raiderRole = guild.roles.cache.get(config.raiderRoleId);

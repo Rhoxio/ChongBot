@@ -1061,6 +1061,25 @@ async function handleDeepDebugRaidCommand(interaction) {
     const upcomingEvents = await fetchUpcomingRaids();
     console.log(`📅 Found ${upcomingEvents.length} upcoming events in next 3 days`);
 
+    // Test individual event fetch to see if signups are available that way
+    if (upcomingEvents.length > 0) {
+      console.log(`🔍 Testing individual event fetch for first event...`);
+      try {
+        const { fetchEventById } = require('../core/raidHelperApi');
+        const individualEvent = await fetchEventById(upcomingEvents[0].id);
+        console.log(`📋 Individual event fetch result:`);
+        console.log(`   Has signUps: ${!!individualEvent.signUps}`);
+        console.log(`   SignUps type: ${typeof individualEvent.signUps}`);
+        console.log(`   SignUps length: ${individualEvent.signUps ? individualEvent.signUps.length : 'N/A'}`);
+        console.log(`   Event keys:`, Object.keys(individualEvent));
+        if (individualEvent.signUps && individualEvent.signUps.length > 0) {
+          console.log(`   Sample signup:`, JSON.stringify(individualEvent.signUps[0], null, 4));
+        }
+      } catch (error) {
+        console.error(`❌ Individual event fetch failed:`, error.message);
+      }
+    }
+
     // Also test with longer date range
     console.log(`📡 Fetching events for next 7 days to find events with signups...`);
     const longerRangeEvents = await fetchUpcomingRaids(config.guildId, 7);

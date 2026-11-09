@@ -33,14 +33,11 @@ module.exports = {
   requiredNicknameChange: process.env.REQUIRED_NICKNAME_CHANGE === 'true',
   adminUserIds: process.env.ADMIN_USER_IDS ? process.env.ADMIN_USER_IDS.split(',') : [],
 
-  // Server Configuration for Warcraftlogs
-  servers: [
-    { label: 'Pagle', value: 'pagle' },
-    { label: 'Lei Shen', value: 'lei-shen' },
-    { label: 'Ra-Den', value: 'raden' },
-    { label: 'Nazgrim', value: 'nazgrim' },
-    { label: 'Galakras', value: 'galakras' }
-  ],
+  // Blizzard API (WoW Forever armory lookups)
+  // Create a client at https://develop.battle.net/access/clients
+  blizzardClientId: process.env.BLIZZARD_CLIENT_ID,
+  blizzardClientSecret: process.env.BLIZZARD_CLIENT_SECRET,
+  blizzardRegion: process.env.BLIZZARD_REGION || 'us',
   
   // Messages
   messages: {

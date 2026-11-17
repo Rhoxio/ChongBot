@@ -156,8 +156,8 @@ npm run dev
 
 ### **Public Commands**
 - `/chongalation [author]` - Get a random community quote
-- `/logs [@user]` - Get Warcraft Logs link for a character on Pagle
-- `/logsby <character>` - Get Warcraft Logs link by exact character name
+- `/armory [@user]` - Look up a member's WoW Forever character using their Discord nickname
+- `/armory first_name:<name> surname:<surname>` - Look up a character by first name and surname
 
 ### **Admin Commands** (Admins + Allow-listed Users Only)
 - `/verify @user` - Manually verify a user

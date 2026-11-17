@@ -6,6 +6,7 @@ const { assignCommunityRole, transferRotwRole } = require('../core/roles');
 const { sendRaidReminder, formatDate, formatTime } = require('../core/raidReminder');
 const { performDailyRaidCheck, getRaidEligibleMembers, findMissingSignups, processRaidSignupCheck } = require('./raidSignupCheck');
 const { fetchUpcomingRaids, filterRaidEvents, getRaidSignups, testApiConnection, testServerApiConnection, extractSignedUpUserIds } = require('../core/raidHelperApi');
+const { lookupForeverCharacter, splitCharacterName, describeLookupResult } = require('../core/foreverArmory');
 
 const commands = [
   // Verify user manually
@@ -77,23 +78,22 @@ const commands = [
         .setDescription('Get a quote from a specific author (optional)')
         .setRequired(false)),
   
-  // Warcraft Logs lookup by Discord user
+  // WoW Forever armory lookup by Discord user or by character name
   new SlashCommandBuilder()
-    .setName('logs')
-    .setDescription('Get Warcraft Logs link for a character on Pagle')
+    .setName('armory')
+    .setDescription('Look up a WoW Forever character on the armory')
     .addUserOption(option =>
       option.setName('user')
-        .setDescription('Discord user to look up (uses your own name if not provided)')
-        .setRequired(false)),
-  
-  // Warcraft Logs lookup by exact character name
-  new SlashCommandBuilder()
-    .setName('logsby')
-    .setDescription('Get Warcraft Logs link by exact character name (supports special characters)')
+        .setDescription('Discord user to look up by nickname (defaults to you)')
+        .setRequired(false))
     .addStringOption(option =>
-      option.setName('character')
-        .setDescription('Exact character name (e.g., Ðruið, Mäge, etc.)')
-        .setRequired(true)),
+      option.setName('first_name')
+        .setDescription('Character first name (use with surname instead of a user)')
+        .setRequired(false))
+    .addStringOption(option =>
+      option.setName('surname')
+        .setDescription('Character surname')
+        .setRequired(false)),
 
   // Debug raid reminder message (Moderators only)
   new SlashCommandBuilder()
@@ -205,11 +205,8 @@ async function handleCommands(interaction) {
       case 'chongalation':
         await handleChongalationCommand(interaction);
         break;
-      case 'logs':
-        await handleLogsCommand(interaction);
-        break;
-      case 'logsby':
-        await handleLogsByCommand(interaction);
+      case 'armory':
+        await handleArmoryCommand(interaction);
         break;
       case 'debug-raid-reminder':
         await handleDebugRaidReminderCommand(interaction);
@@ -701,82 +698,60 @@ async function handleChongalationCommand(interaction) {
   }
 }
 
-async function handleLogsCommand(interaction) {
-  let targetUser = interaction.options.getUser('user');
-  let targetMember;
-  let nameSource = '';
-  
-  // Use the mentioned user or default to the command user
-  if (targetUser) {
-    targetMember = await interaction.guild.members.fetch(targetUser.id);
-    nameSource = ` (${targetUser.tag}'s Discord name)`;
+async function handleArmoryCommand(interaction) {
+  const firstNameOption = interaction.options.getString('first_name');
+  const surnameOption = interaction.options.getString('surname');
+  const targetUser = interaction.options.getUser('user');
+
+  let names;
+  let discordUser = null;
+
+  if (firstNameOption || surnameOption) {
+    if (!firstNameOption || !surnameOption) {
+      await interaction.reply({
+        content: '❌ Please give both `first_name` and `surname`, or pick a `user` instead.',
+        ephemeral: true
+      });
+      return;
+    }
+    names = { firstName: firstNameOption.trim(), surname: surnameOption.trim() };
   } else {
-    targetUser = interaction.user;
-    targetMember = interaction.member;
-    nameSource = ' (your Discord name)';
-  }
-  
-  // Use their server nickname (display name)
-  let characterName = targetMember.displayName;
-  const originalName = characterName;
-  
-  // URL encode the character name to handle special characters
-  const encodedCharacterName = encodeURIComponent(characterName.toLowerCase());
+    discordUser = targetUser || interaction.user;
+    const member = targetUser
+      ? await interaction.guild.members.fetch(targetUser.id)
+      : interaction.member;
+    names = splitCharacterName(member.displayName);
 
-  // Generate the Warcraft Logs URL for Pagle server, Mists of Pandaria
-  const logsUrl = `https://classic.warcraftlogs.com/character/us/pagle/${encodedCharacterName}`;
-  
+    if (!names) {
+      await interaction.reply({
+        content: `❌ **${member.displayName}** has no surname in their nickname, so I can't look them up. Try \`/armory first_name:<name> surname:<surname>\`.`,
+        ephemeral: true
+      });
+      return;
+    }
+  }
+
+  await interaction.deferReply();
+
+  const result = await lookupForeverCharacter(names.firstName, names.surname);
+  const lookup = describeLookupResult(result);
+  const characterName = `${names.firstName} ${names.surname}`;
+
+  const fields = [...lookup.fields];
+  if (discordUser) {
+    fields.push({ name: 'Discord User', value: discordUser.tag, inline: true });
+  }
+
   const embed = new EmbedBuilder()
-    .setColor(0x0099FF)
-    .setTitle(`📊 Warcraft Logs - ${characterName}`)
-    .setDescription(`[View ${characterName}'s logs on Pagle](${logsUrl})${nameSource}`)
-    .addFields(
-      { name: 'Server', value: 'Pagle (US)', inline: true },
-      { name: 'Expansion', value: 'Mists of Pandaria Classic', inline: true },
-      { name: 'Character', value: characterName, inline: true },
-      { name: 'Discord User', value: targetUser.tag, inline: true }
-    )
-    .setFooter({ text: 'Click the link above to view detailed combat logs' })
+    .setColor(lookup.found ? 0x0099FF : 0xFFA500)
+    .setTitle(`🔎 WoW Forever Armory - ${characterName}`)
+    .setDescription(lookup.summary)
+    .addFields(fields)
     .setTimestamp();
 
-  await interaction.reply({ embeds: [embed] });
-  
-  console.log(`📊 ${interaction.user.tag} requested logs for ${targetUser.tag} (character: ${characterName})`);
-}
+  await interaction.editReply({ embeds: [embed] });
 
-async function handleLogsByCommand(interaction) {
-  const characterName = interaction.options.getString('character').trim();
-  
-  if (!characterName) {
-    await interaction.reply({
-      content: '❌ Please provide a character name.',
-      ephemeral: true
-    });
-    return;
-  }
-  
-  // URL encode the character name to handle special characters
-  const encodedCharacterName = encodeURIComponent(characterName.toLowerCase());
-  
-  // Generate the Warcraft Logs URL for Pagle server, Mists of Pandaria
-  const logsUrl = `https://classic.warcraftlogs.com/character/us/pagle/${encodedCharacterName}`;
-  
-  const embed = new EmbedBuilder()
-    .setColor(0xFF6B00) // Different color to distinguish from /logs
-    .setTitle(`📊 Warcraft Logs - ${characterName}`)
-    .setDescription(`[View ${characterName}'s logs on Pagle](${logsUrl})`)
-    .addFields(
-      { name: 'Server', value: 'Pagle (US)', inline: true },
-      { name: 'Expansion', value: 'Mists of Pandaria Classic', inline: true },
-      { name: 'Character', value: characterName, inline: true },
-      { name: 'Search Type', value: 'Exact Name', inline: true }
-    )
-    .setFooter({ text: 'Exact character name lookup - supports special characters' })
-    .setTimestamp();
-
-  await interaction.reply({ embeds: [embed] });
-  
-  console.log(`📊 ${interaction.user.tag} requested logs for exact character name: ${characterName}`);
+  console.log(`🔎 ${interaction.user.tag} looked up ${characterName}: ${result.status}`);
 }
 
 async function handleDebugRaidReminderCommand(interaction) {

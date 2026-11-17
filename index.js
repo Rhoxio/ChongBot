@@ -145,9 +145,20 @@ async function setupVerificationMessage(channel) {
       msg.embeds[0].title.includes('Welcome to Chonglers')
     );
     
-    // If verification message already exists, don't create a new one
+    // If verification message already exists, refresh its text in place
+    // (so wording changes go live on deploy without a manual reset)
     if (botMessages.size > 0) {
-      console.log(`✅ Verification message already exists in #${channel.name}`);
+      const existing = botMessages.first();
+      const embed = createVerificationEmbed();
+      if (existing.embeds[0].description !== embed.data.description) {
+        await existing.edit({
+          embeds: [embed],
+          components: [new ActionRowBuilder().addComponents(createVerificationButton())]
+        });
+        console.log(`🔄 Updated verification message in #${channel.name}`);
+      } else {
+        console.log(`✅ Verification message already exists in #${channel.name}`);
+      }
       return;
     }
     

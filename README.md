@@ -5,8 +5,9 @@ A comprehensive Discord verification bot with a **two-step verification system**
 ## ✨ Features
 
 ### 🔐 **Two-Step Verification System**
-- **Step 1**: Modal form to set in-game character name
-- **Step 2**: Dropdown menu to selec/clat community role (Pug/Prospect/Guildie)
+- **Step 1**: Modal form to set WoW Forever character first name + surname
+- **Step 2**: Dropdown menu to select community role (Pug/Prospect/Guildie)
+- **Background armory lookup**: after verifying, the bot looks the character up on the WoW Forever armory (Blizzard API) and posts the result to the auto logs channel. It never blocks access. Needs `BLIZZARD_CLIENT_ID` / `BLIZZARD_CLIENT_SECRET`.
 - **Button-based UI** with beautiful Discord embeds
 - **No verification until both steps complete**
 
@@ -155,8 +156,8 @@ npm run dev
 
 ### **Public Commands**
 - `/chongalation [author]` - Get a random community quote
-- `/logs [@user]` - Get Warcraft Logs link for a character on Pagle
-- `/logsby <character>` - Get Warcraft Logs link by exact character name
+- `/armory [@user]` - Look up a member's WoW Forever character using their Discord nickname
+- `/armory first_name:<name> surname:<surname>` - Look up a character by first name and surname
 
 ### **Admin Commands** (Admins + Allow-listed Users Only)
 - `/verify @user` - Manually verify a user
